@@ -9,6 +9,8 @@ import AuthCallback from "@/pages/AuthCallback";
 import CustomerDashboard from "@/pages/CustomerDashboard";
 import HandymanDashboard from "@/pages/HandymanDashboard";
 import CategoryPage from "@/pages/CategoryPage";
+import BlogIndex from "@/pages/BlogIndex";
+import BlogArticle from "@/pages/BlogArticle";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 
@@ -21,6 +23,8 @@ function AppRouter() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/services/:slug" element={<CategoryPage />} />
+      <Route path="/blog" element={<BlogIndex />} />
+      <Route path="/blog/:slug" element={<BlogArticle />} />
       <Route path="/login" element={<Login />} />
       <Route path="/dashboard" element={<CustomerDashboard />} />
       <Route path="/handyman" element={<HandymanDashboard />} />

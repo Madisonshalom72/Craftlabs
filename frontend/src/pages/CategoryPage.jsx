@@ -129,10 +129,11 @@ export default function CategoryPage() {
                 Diagnose {data.category.name} <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
-                to="/login"
+                to={`/blog/${slug}`}
+                data-testid="category-blog-link"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-white/12 hover:border-amber-500/40 text-slate-100 font-semibold transition"
               >
-                Get instant quote
+                Read the expert guide
               </Link>
             </div>
 

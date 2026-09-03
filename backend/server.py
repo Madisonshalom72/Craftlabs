@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Cookie, Header
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Cookie, Header, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -104,6 +104,25 @@ class MessageCreate(BaseModel):
 class ReviewCreate(BaseModel):
     rating: int  # 1..5
     comment: Optional[str] = ""
+
+
+BLOG_TITLES = {
+    "electrical":  "How to spot a bad electrical panel install (and what NYC code actually requires)",
+    "plumbing":    "The 7 warning signs your NYC plumber cut corners on the water heater",
+    "hvac":        "Mini-split vs central AC: what an NYC HVAC pro actually recommends",
+    "carpentry":   "How to tell if your carpenter really understands pre-war NYC trim",
+    "roofing":     "Flat roof red flags: what a GAF Master Elite contractor looks for",
+    "smart_home":  "Smart home install mistakes that break your ecosystem (and how to spot them)",
+    "windows":     "How to spot a bad Andersen window install (before the warranty voids)",
+    "doors":       "Front door replacement gone wrong: 6 flashing mistakes that cause leaks",
+    "stairs":      "NYC stair code demystified: what a legal railing retrofit actually costs",
+    "painting":    "Why your painter's Level-5 finish is probably a Level-3 (and what to check)",
+    "tiling":      "Backsplash install red flags: cheap grout, uneven lippage, and worse",
+    "appliance":   "Sub-Zero not cooling? The 5 things a factory tech checks before quoting",
+    "deck_fence":  "Composite deck install gone wrong: 8 warning signs your builder rushed it",
+    "locksmith":   "Smart lock installation: what a real ALOA locksmith does differently",
+    "general":     "Hiring a handyman in NYC: 9 questions that separate pros from amateurs",
+}
 
 
 # ============ REAL-TIME LEAD FEED ============
@@ -689,6 +708,141 @@ async def list_handyman_reviews(user_id: str):
     return reviews
 
 
+# ============ BLOG ============
+async def _generate_article(slug: str) -> dict:
+    """Use Claude Sonnet to generate a long-form, SEO-optimized article for a niche."""
+    cat = next((c for c in await categories() if c["id"] == slug), None)
+    if not cat:
+        raise HTTPException(404, "Unknown category")
+    meta = CATEGORY_CONTENT.get(slug, {})
+    kw = ", ".join(meta.get("keywords", []))
+    working_title = BLOG_TITLES.get(slug, f"Expert guide to {cat['name'].lower()} in NYC")
+
+    sys = (
+        "You are a senior editor for CraftPulse AI, a NYC handyman marketplace. "
+        "Write authoritative, specific, non-fluffy expert guides that homeowners actually want to read. "
+        "You know NYC building codes, common contractor shortcuts, and how to spot bad work. "
+        "Output STRICT JSON only, no markdown fences. Schema: "
+        "{ \"title\": string, "
+        "  \"subtitle\": string (one sentence hook), "
+        "  \"meta_description\": string (140-160 chars, must include niche keyword), "
+        "  \"reading_time_min\": integer 4..9, "
+        "  \"intro\": string (2-3 short paragraphs, plain text, no markdown), "
+        "  \"sections\": [ {\"heading\": string, \"body\": string (2-4 paragraphs, plain text, no markdown, use \\n\\n between paragraphs)} ] with EXACTLY 5 sections, "
+        "  \"key_takeaways\": [string] with 4-5 bullets, "
+        "  \"faq\": [ {\"q\": string, \"a\": string} ] with 3 items, "
+        "  \"cta_line\": string (one sentence urging them to book via CraftPulse) }"
+    )
+    user_prompt = (
+        f"Write the guide '{working_title}' for the CraftPulse AI '{cat['name']}' niche. "
+        f"Target long-tail SEO keywords: {kw}. "
+        f"Audience: NYC homeowners. Tone: sharp, opinionated, expert. "
+        f"Include specific brand names, price ranges (USD), NYC-specific code references where relevant. "
+        f"Every claim must sound like it came from a 15-year veteran of the trade."
+    )
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"blog_{slug}_{uuid.uuid4().hex[:6]}",
+        system_message=sys,
+    ).with_model("anthropic", "claude-sonnet-4-6")
+
+    buf = []
+    async for ev in chat.stream_message(UserMessage(text=user_prompt)):
+        if isinstance(ev, TextDelta):
+            buf.append(ev.content)
+        elif isinstance(ev, StreamDone):
+            break
+    raw = "".join(buf).strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+    try:
+        data = jsonlib.loads(raw)
+    except Exception:
+        # Fallback stub
+        data = {
+            "title": working_title,
+            "subtitle": meta.get("hero_sub", ""),
+            "meta_description": (meta.get("hero_sub") or f"NYC {cat['name']} expert guide")[:158],
+            "reading_time_min": 5,
+            "intro": raw[:600] or "Article is being drafted. Refresh in a moment.",
+            "sections": [],
+            "key_takeaways": [],
+            "faq": [],
+            "cta_line": f"Book a vetted {cat['name']} pro on CraftPulse AI.",
+        }
+    return data
+
+
+@api.get("/blog")
+async def list_blog():
+    all_cats = await categories()
+    stored = {a["slug"]: a async for a in db.blog_articles.find({}, {"_id": 0})}
+    return [
+        {
+            "slug": c["id"], "category": c["name"],
+            "title": (stored.get(c["id"]) or {}).get("title") or BLOG_TITLES.get(c["id"]),
+            "subtitle": (stored.get(c["id"]) or {}).get("subtitle") or "",
+            "reading_time_min": (stored.get(c["id"]) or {}).get("reading_time_min") or 5,
+            "keywords": CATEGORY_CONTENT.get(c["id"], {}).get("keywords", []),
+            "status": (stored.get(c["id"]) or {}).get("status") or "not_started",
+            "created_at": (stored.get(c["id"]) or {}).get("created_at"),
+        }
+        for c in all_cats
+    ]
+
+
+@api.get("/blog/{slug}")
+async def get_blog(slug: str, background_tasks: BackgroundTasks):
+    """Return an article. If not yet generated, spawn background gen and return {status:'generating'}."""
+    existing = await db.blog_articles.find_one({"slug": slug}, {"_id": 0})
+    if existing and existing.get("status") == "ready":
+        return existing
+    if existing and existing.get("status") == "generating":
+        return {"slug": slug, "status": "generating"}
+    # Not started — mark and kick off
+    all_cats = await categories()
+    cat_name = next((c["name"] for c in all_cats if c["id"] == slug), None)
+    if not cat_name:
+        raise HTTPException(404, "Unknown category")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.blog_articles.update_one(
+        {"slug": slug},
+        {"$set": {"slug": slug, "status": "generating", "started_at": now}},
+        upsert=True,
+    )
+    background_tasks.add_task(_run_generation, slug, cat_name)
+    return {"slug": slug, "status": "generating"}
+
+
+async def _run_generation(slug: str, cat_name: str):
+    try:
+        article = await _generate_article(slug)
+        doc = {
+            "slug": slug,
+            "category": cat_name,
+            "keywords": CATEGORY_CONTENT.get(slug, {}).get("keywords", []),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "status": "ready",
+            **article,
+        }
+        await db.blog_articles.update_one({"slug": slug}, {"$set": doc}, upsert=True)
+    except Exception as exc:
+        await db.blog_articles.update_one(
+            {"slug": slug},
+            {"$set": {"status": "error", "error": str(exc)[:400]}},
+        )
+
+
+@api.post("/blog/regenerate/{slug}")
+async def regenerate_blog(slug: str, background_tasks: BackgroundTasks):
+    """Force re-generate an article."""
+    await db.blog_articles.delete_one({"slug": slug})
+    return await get_blog(slug, background_tasks)
+
+
 # ============ PAYMENTS (Stripe Flow A) ============
 @api.post("/payments/checkout")
 async def create_checkout(req: CheckoutRequest):
@@ -1012,7 +1166,9 @@ async def sitemap_xml(request: Request):
     entries = [
         (f"{site}/",       "daily",   "1.0"),
         (f"{site}/login",  "monthly", "0.6"),
-    ] + [(f"{site}/services/{c['id']}", "weekly", "0.9") for c in all_cats]
+        (f"{site}/blog",   "weekly",  "0.8"),
+    ] + [(f"{site}/services/{c['id']}", "weekly", "0.9") for c in all_cats] \
+      + [(f"{site}/blog/{c['id']}",     "monthly","0.7") for c in all_cats]
     body = ['<?xml version="1.0" encoding="UTF-8"?>',
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for loc, cf, pr in entries:

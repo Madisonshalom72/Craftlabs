@@ -52,9 +52,12 @@ def url(loc, priority="0.8", changefreq="weekly"):
 urls = [
     url(f"{SITE_URL}/",         priority="1.0", changefreq="daily"),
     url(f"{SITE_URL}/login",    priority="0.6", changefreq="monthly"),
+    url(f"{SITE_URL}/blog",     priority="0.8", changefreq="weekly"),
 ]
 for slug in CATEGORY_SLUGS:
     urls.append(url(f"{SITE_URL}/services/{slug}", priority="0.9", changefreq="weekly"))
+for slug in CATEGORY_SLUGS:
+    urls.append(url(f"{SITE_URL}/blog/{slug}",     priority="0.7", changefreq="monthly"))
 
 xml = (
     '<?xml version="1.0" encoding="UTF-8"?>\n'
