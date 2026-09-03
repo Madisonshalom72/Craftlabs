@@ -1,0 +1,201 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Navbar from "@/components/Navbar";
+import AIDiagnosticStudio from "@/components/AIDiagnosticStudio";
+import AIChat from "@/components/AIChat";
+import { http } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import {
+  Sparkles, Star, MapPin, CheckCircle2, Loader2, Briefcase, Clock, DollarSign,
+} from "lucide-react";
+import { toast } from "sonner";
+
+const TIER_META = {
+  quick_fix: { name: "Quick Fix", price: 75 },
+  standard_repair: { name: "Standard", price: 150 },
+  major_project: { name: "Major", price: 325 },
+  emergency_call: { name: "Emergency", price: 500 },
+};
+
+export default function CustomerDashboard() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  const [diagnosis, setDiagnosis] = useState(null);
+  const [matches, setMatches] = useState([]);
+  const [matching, setMatching] = useState(false);
+  const [bookings, setBookings] = useState([]);
+  const [checkoutFor, setCheckoutFor] = useState(null);
+  const [sessionId] = useState(() => `chat_${Math.random().toString(36).slice(2)}`);
+  const [tab, setTab] = useState("diagnose");
+
+  useEffect(() => {
+    if (!loading && !user) navigate("/login");
+  }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (user) http.get("/jobs?mine=true").then(r => setBookings(r.data));
+  }, [user]);
+
+  const handleDiagnosis = async (d) => {
+    setDiagnosis(d);
+    setMatching(true);
+    // Post a draft job then match
+    try {
+      const { data: job } = await http.post("/jobs", {
+        category: d.category,
+        title: d.issue,
+        description: d.root_cause + (d.text_hint ? ` — ${d.text_hint}` : ""),
+        photo_base64: d.photo_base64,
+        ai_diagnosis: d,
+        tier: d.recommended_tier || "standard_repair",
+      });
+      const { data: ranked } = await http.post(`/jobs/${job.job_id}/match`);
+      setMatches(ranked.map(r => ({ ...r, _job_id: job.job_id })));
+      const list = await http.get("/jobs?mine=true");
+      setBookings(list.data);
+    } catch (e) {
+      toast.error("Match engine failed");
+    } finally {
+      setMatching(false);
+    }
+  };
+
+  const book = async (handyman) => {
+    setCheckoutFor(handyman.user_id);
+    try {
+      const tier = diagnosis?.recommended_tier || "standard_repair";
+      const { data } = await http.post("/payments/checkout", {
+        lookup_key: tier,
+        origin_url: window.location.origin,
+        job_id: handyman._job_id,
+        handyman_id: handyman.user_id,
+      });
+      window.location.href = data.checkout_url;
+    } catch (e) {
+      toast.error("Checkout failed. Try again.");
+      setCheckoutFor(null);
+    }
+  };
+
+  if (loading || !user) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-amber-500" /></div>;
+
+  return (
+    <div className="min-h-screen">
+      <Navbar />
+      <div className="max-w-7xl mx-auto px-5 lg:px-8 py-8">
+        <div className="flex items-end justify-between mb-6 flex-wrap gap-3">
+          <div>
+            <div className="ai-badge mb-2">Homeowner Portal</div>
+            <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight">
+              Hey, {user.name.split(" ")[0]}.
+            </h1>
+            <p className="text-slate-400 mt-1 text-sm">Post a job in one photo. AI handles the rest.</p>
+          </div>
+        </div>
+
+        <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-xl border border-white/8 w-fit">
+          <button data-testid="tab-diagnose" onClick={() => setTab("diagnose")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "diagnose" ? "bg-amber-500 text-slate-900" : "text-slate-300 hover:bg-white/5"}`}>
+            AI Diagnosis
+          </button>
+          <button data-testid="tab-chat" onClick={() => setTab("chat")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "chat" ? "bg-amber-500 text-slate-900" : "text-slate-300 hover:bg-white/5"}`}>
+            AI Concierge
+          </button>
+          <button data-testid="tab-bookings" onClick={() => setTab("bookings")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "bookings" ? "bg-amber-500 text-slate-900" : "text-slate-300 hover:bg-white/5"}`}>
+            My Jobs
+          </button>
+        </div>
+
+        {tab === "diagnose" && (
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+            <div className="xl:col-span-8">
+              <AIDiagnosticStudio onDiagnosis={handleDiagnosis} />
+            </div>
+            <div className="xl:col-span-4">
+              <div data-testid="match-panel" className="glass rounded-3xl p-5 h-full">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <h3 className="font-heading text-lg font-bold">Smart Matches</h3>
+                </div>
+                {!diagnosis && (
+                  <p className="text-sm text-slate-500">Run a diagnosis to see AI-ranked craftsmen for your job.</p>
+                )}
+                {matching && (
+                  <div className="space-y-3">
+                    {[1,2,3].map(i => <div key={i} className="h-16 rounded-xl shimmer bg-white/5" />)}
+                  </div>
+                )}
+                {!matching && matches.length > 0 && (
+                  <div className="space-y-3">
+                    {matches.slice(0, 5).map(m => (
+                      <div key={m.user_id} data-testid={`match-${m.user_id}`} className="border border-white/8 hover:border-amber-500/40 rounded-2xl p-3 transition">
+                        <div className="flex items-start gap-3">
+                          <img src={m.picture} alt="" className="w-11 h-11 rounded-xl object-cover border border-amber-500/30" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <div className="font-semibold text-sm truncate">{m.name}</div>
+                              {m.verified && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />}
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate">{m.role_title}</div>
+                            <div className="flex items-center gap-2 mt-1 text-xs">
+                              <span className="flex items-center gap-1 text-slate-300"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{m.rating}</span>
+                              <span className="text-slate-500">·</span>
+                              <span className="font-mono text-amber-400">${m.hourly_rate}/hr</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Match</div>
+                            <div className="font-heading text-lg font-bold text-emerald-400">{m.match_score}%</div>
+                          </div>
+                        </div>
+                        <button
+                          data-testid={`book-${m.user_id}`}
+                          onClick={() => book(m)}
+                          disabled={checkoutFor === m.user_id}
+                          className="mt-3 w-full py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-semibold transition disabled:opacity-50"
+                        >
+                          {checkoutFor === m.user_id ? "Redirecting…" : `Book · $${TIER_META[diagnosis?.recommended_tier || "standard_repair"].price}`}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === "chat" && (
+          <div className="max-w-3xl">
+            <AIChat sessionId={sessionId} />
+          </div>
+        )}
+
+        {tab === "bookings" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {bookings.length === 0 && (
+              <div className="text-slate-500 text-sm">No jobs yet. Run a diagnosis to post your first.</div>
+            )}
+            {bookings.map(j => (
+              <div key={j.job_id} data-testid={`booking-${j.job_id}`} className="glass rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <Briefcase className="w-4 h-4 text-amber-400" />
+                  <span className="ai-badge">{j.category}</span>
+                  <span className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 rounded-full ml-auto ${j.status === "paid" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30" : "bg-white/5 text-slate-400 border border-white/10"}`}>
+                    {j.status}
+                  </span>
+                </div>
+                <h4 className="font-heading text-lg font-semibold">{j.title}</h4>
+                <p className="text-xs text-slate-400 line-clamp-2 mt-1">{j.description}</p>
+                <div className="mt-3 flex items-center gap-4 text-xs text-slate-400">
+                  <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5" />${TIER_META[j.tier]?.price}</span>
+                  <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{new Date(j.created_at).toLocaleDateString()}</span>
+                  {j.assigned_handyman_name && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{j.assigned_handyman_name}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

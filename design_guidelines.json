@@ -1,0 +1,195 @@
+{
+  "project_identity": {
+    "name": "CraftPulse AI",
+    "tagline": "The Autonomous AI Handyman & Guild Marketplace",
+    "persona": "E1 Anti-AI Designer - Tactical Craftsmanship & Editorial Precision",
+    "archetype": "The Performance Pro & Workshop Foundry (Dark Tactical Slate + Warm Brass & Cyber Amber)",
+    "description": "A top 1% two-sided handyman marketplace powered by Claude 3.5 Vision AI photo diagnosis, neural craftsman matching, instant algorithmic estimates, and Stripe escrow checkout."
+  },
+  "typography": {
+    "font_family_imports": "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');",
+    "heading_font": "'Outfit', sans-serif",
+    "body_font": "'Plus Jakarta Sans', sans-serif",
+    "mono_font": "'JetBrains Mono', monospace",
+    "hierarchy": {
+      "h1_hero": "text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08] font-['Outfit']",
+      "h2_section": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight font-['Outfit']",
+      "h3_card": "text-xl sm:text-2xl font-semibold tracking-normal font-['Outfit']",
+      "subtitle": "text-base sm:text-lg font-medium text-slate-400 leading-relaxed font-['Plus_Jakarta_Sans']",
+      "body": "text-sm sm:text-base font-normal text-slate-300 leading-relaxed font-['Plus_Jakarta_Sans']",
+      "badge_mono": "font-mono text-xs uppercase tracking-widest font-semibold font-['JetBrains_Mono']"
+    }
+  },
+  "colors": {
+    "theme_mode": "dark",
+    "base_background": "#0B0D11",
+    "surface_slate": "#13161C",
+    "surface_card": "#1A1E26",
+    "surface_elevated": "#232833",
+    "border_subtle": "rgba(255, 255, 255, 0.08)",
+    "border_accent": "rgba(245, 158, 11, 0.3)",
+    "primary": {
+      "amber_brass": "#F59E0B",
+      "amber_hover": "#D97706",
+      "amber_glow": "rgba(245, 158, 11, 0.2)"
+    },
+    "secondary": {
+      "forge_terracotta": "#EA580C",
+      "electric_cyan": "#06B6D4",
+      "emerald_verified": "#10B981"
+    },
+    "text": {
+      "primary": "#F8FAFC",
+      "secondary": "#94A3B8",
+      "muted": "#64748B",
+      "accent": "#FBBF24"
+    },
+    "gradients": {
+      "mesh_ambient": "radial-gradient(ellipse at 50% 0%, rgba(245, 158, 11, 0.12) 0%, rgba(11, 13, 17, 0) 70%)",
+      "card_highlight": "linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%)",
+      "ai_pulse": "linear-gradient(90deg, #F59E0B 0%, #EA580C 50%, #06B6D4 100%)"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "backdrop-blur-xl bg-[#13161C]/80 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.37)]",
+    "card_borders": "border border-white/10 hover:border-amber-500/40 transition-colors duration-300",
+    "ai_badge": "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-mono font-medium",
+    "glow_effect": "shadow-[0_0_25px_rgba(245,158,11,0.15)]",
+    "noise_overlay": "opacity-20 pointer-events-none mix-blend-overlay"
+  },
+  "grids_and_layouts": {
+    "hero_layout": "grid grid-cols-1 lg:grid-cols-12 gap-8 items-center pt-8 pb-16",
+    "bento_grid_marketing": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-6",
+    "dashboard_grid": "grid grid-cols-1 lg:grid-cols-12 gap-6",
+    "bento_spans": {
+      "hero_card": "lg:col-span-8 lg:row-span-2",
+      "side_card": "lg:col-span-4 lg:row-span-1",
+      "full_row": "lg:col-span-12",
+      "third": "lg:col-span-4",
+      "half": "lg:col-span-6"
+    }
+  },
+  "responsive": {
+    "breakpoint": "mobile-first",
+    "layout": "All grids drop to single-column (grid-cols-1) on screens < 640px. Side-by-side split views stack vertically. Navigation switches to compact bottom floating bar or mobile drawer with full touch targets.",
+    "typography": "Mobile headlines use text-3xl to text-4xl, fluid scaling to text-6xl on desktop. Inputs and buttons maintain min-h-[48px] on mobile to prevent accidental zooming.",
+    "overflow_guard": "All scrollable areas use overflow-x-hidden on containers and overflow-y-auto on scroll panels with touch-momentum scroll (-webkit-overflow-scrolling: touch).",
+    "tap_targets": "Minimum 44px x 44px tap area for buttons, badges, tabs, and diagnostic triggers."
+  },
+  "component_strategy": {
+    "ui_library": "Shadcn UI components customized with tactical dark theme (Card, Dialog, Tabs, Select, Badge, Button, Drawer, Input, Progress, Sonner)",
+    "icons": "Lucide React icons with amber/cyan duotone accents",
+    "toast_notifications": "Sonner toast notifications for AI Diagnosis, Booking Confirmation, Payout Releases, and Job Lead Alerts",
+    "key_views": [
+      {
+        "id": "landing",
+        "name": "Landing Page & Discovery",
+        "features": [
+          "Hero Manifesto with interactive AI Vision Diagnostic Sandbox",
+          "Service Categories (Electrical, Plumbing, HVAC, Carpentry, Smart Home, Roofing)",
+          "Live Marketplace Ticker (Recent AI Matches & Completed Repairs)",
+          "Step-by-step How AI Works workflow",
+          "Top Verified Guild Craftsmen Carousel",
+          "Customer & Handyman Testimonials"
+        ]
+      },
+      {
+        "id": "customer_dashboard",
+        "name": "Customer Portal & AI Diagnostic Studio",
+        "features": [
+          "Instant Job Poster with AI Photo Analysis (Upload image -> Auto Diagnosis + Parts List + Instant Quote Range)",
+          "AI Concierge Chat Assistant for custom repair scoping",
+          "AI Smart Matching Panel (Ranks handymen by AI Match %, Distance, Rating, Escrow Price)",
+          "Booking Checkout with Stripe escrow integration",
+          "My Active Bookings & Timeline Tracker with milestone payments"
+        ]
+      },
+      {
+        "id": "handyman_dashboard",
+        "name": "Handyman Guild Command Center",
+        "features": [
+          "Craftsman Profile Studio (Skills, Hourly Rate, Service Area, License Upload, AI Bio Generator)",
+          "AI Job Lead Stream (Live matched leads with match score %, photo diagnosis view, Accept/Decline triggers)",
+          "Active Work Orders & Customer Chat",
+          "Earnings & Stripe Payout Metrics (Net earnings, pending escrow, completed jobs count)"
+        ]
+      },
+      {
+        "id": "auth_modal",
+        "name": "Emergent Google Social Auth Modal",
+        "features": [
+          "Role Selector Toggle (Customer / Handyman)",
+          "Google OAuth Integration Button",
+          "Demo Account Direct Bypass Buttons for rapid testing"
+        ]
+      }
+    ]
+  },
+  "image_urls": {
+    "hero_handyman_work": "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=80",
+    "electrician_work": "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=800&q=80",
+    "carpenter_tools": "https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=800&q=80",
+    "plumbing_technician": "https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&w=800&q=80",
+    "hvac_diagnostic": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=800&q=80",
+    "modern_home_repair": "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80",
+    "broken_pipe_sample": "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&w=600&q=80",
+    "handymen_avatars": [
+      {
+        "name": "Marcus Vance",
+        "role": "Master Electrician & EV Charging Specialist",
+        "rating": 4.98,
+        "hourly_rate": "$85/hr",
+        "url": "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80"
+      },
+      {
+        "name": "Elena Rostova",
+        "role": "Certified Plumber & Hydronics Expert",
+        "rating": 4.95,
+        "hourly_rate": "$90/hr",
+        "url": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80"
+      },
+      {
+        "name": "David Chen",
+        "role": "Master Carpenter & Cabinetry Restorer",
+        "rating": 4.99,
+        "hourly_rate": "$78/hr",
+        "url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80"
+      },
+      {
+        "name": "Sarah Miller",
+        "role": "HVAC Technician & Heat Pump Specialist",
+        "rating": 4.92,
+        "hourly_rate": "$82/hr",
+        "url": "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Build a complete, fully functional two-sided AI handyman marketplace platform in React.",
+    "Support both Customer and Handyman roles seamlessly with role switching or dedicated navigation tabs.",
+    "Integrate interactive Claude 3.5 AI Vision analysis simulation: allow users to pick pre-set issue photos or upload custom images to see real-time AI bounding box analysis, identified fault, severity score, required tools, and estimated price quote.",
+    "Integrate interactive AI Repair Concierge Chatbot that answers repair questions, provides DIY advice vs pro necessity, and auto-generates job postings.",
+    "Implement AI Smart Matching: rank available handymen by calculated match fit score, distance, hourly rate, badges, and user reviews.",
+    "Implement Stripe Checkout Flow simulation for booking handymen with escrow held funds, job status progression, and instant receipt modal.",
+    "Handyman Dashboard must allow accepting/declining job leads, adjusting availability, modifying service rates, and viewing payout metrics.",
+    "Ensure every interactive element (buttons, tabs, inputs, cards, status badges) includes exact data-testid attributes for E2E testing.",
+    "Strictly follow mobile-first responsive design principles: layout stacks cleanly on mobile with smooth bottom drawers or tab bar.",
+    "Use Sonner for rich toast alerts on AI actions, job lead acceptance, and payments."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": {
+    "do_not_do": [
+      "DO NOT use generic purple/white SaaS gradients or plain light backgrounds without character.",
+      "DO NOT use Inter or standard fonts for main headings; stick to Outfit for headlines and Plus Jakarta Sans for body.",
+      "DO NOT center-align the entire main container; keep asymmetric, editorial layout balance.",
+      "DO NOT use AI assistant emojis (🤖🧠💭💡) as functional icons; use crisp Lucide React icons.",
+      "DO NOT leave interactive elements without explicit data-testid attributes."
+    ],
+    "must_do": [
+      "MUST enforce dark tactical slate aesthetic with warm brass (#F59E0B) highlights.",
+      "MUST make AI photo diagnosis visual and detailed (bounding box over image, severity meter, itemized parts estimate).",
+      "MUST include both Customer View and Handyman View with seamless header role-switcher.",
+      "MUST ensure mobile tap targets are at least 44px x 44px.",
+      "MUST include Stripe checkout modal with escrow payment hold simulation."
+    ]
+  }
+}

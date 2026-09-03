@@ -1,0 +1,44 @@
+{
+  "summary": "First-finish latency test for CraftPulse AI. Backend: 12/13 tested endpoints passed. Landing/customer/handyman/profile UI flows all pass. One HIGH-priority backend blocker: /api/payments/checkout returns 500 due to Stripe automatic_tax requiring a valid head office address on the test account. One MEDIUM: docs in review request specified wrong AI diagnose payload key (image_base64); actual server contract is photo_base64 — endpoint itself works fine with photo_base64 and returns all expected keys.",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "GET /api/ returns {status: ok}",
+    "GET /api/handymen returns 6 seeded handymen with rating, hourly_rate, skills",
+    "GET /api/categories returns 7 categories",
+    "GET /api/tiers returns 4 tiers (quick_fix/standard_repair/major_project/emergency_call)",
+    "POST /api/auth/demo-login role=customer -> sets session_token cookie + returns token; GET /api/auth/me works with Bearer",
+    "POST /api/auth/demo-login role=handyman -> returns Marcus Vance (marcus.vance@demo.craftpulse.ai)",
+    "POST /api/auth/set-role customer->handyman returns 200 and creates handyman_profile",
+    "POST /api/ai/diagnose with real Unsplash JPEG (55KB) as photo_base64 -> 200 with all required keys (issue, category, severity, severity_score, estimated_price_min/max, recommended_tier) via Claude Sonnet",
+    "POST /api/jobs creates job; POST /api/jobs/{id}/match returns 6 ranked handymen with match_score (top=87)",
+    "GET /api/jobs?mine=true returns customer's jobs (count 1)",
+    "GET /api/jobs?leads=true as handyman returns open jobs with match_score attached",
+    "POST /api/jobs/{id}/accept as handyman returns 200",
+    "GET /api/payments/status/{session_id} route exists (returns 404 for unknown id — correct)",
+    "Landing page: navbar, brand-link, hero-cta-post-job, category-electrical, 4 craftsman-* cards visible",
+    "Customer flow: /login -> role-customer-btn -> demo-login-btn -> /dashboard with ai-diagnostic-studio visible",
+    "Handyman flow: /login -> role-handyman-btn -> demo-login-btn -> /handyman with tab-leads, stat-rating, availability-toggle visible",
+    "Handyman Profile Studio: input-role-title & input-hourly-rate editable; save-profile-btn triggers 'Profile updated' toast"
+  ],
+  "failed": [
+    {
+      "area": "backend / Stripe payments",
+      "issue": "POST /api/payments/checkout returns 500 InvalidRequestError. Stripe error: 'You must have a valid head office address to enable automatic tax calculation in test mode.' Payload used: {lookup_key: 'standard_repair', origin_url: 'https://fixit-ai-6.preview.emergentagent.com'}. Line 479 in server.py sets automatic_tax={'enabled': True}, but the connected Stripe test account has no origin address configured, so every checkout creation fails.",
+      "evidence": "Backend log stack trace: 'stripe._error.InvalidRequestError: Request req_U181hBpIY8Shj1: You must have a valid head office address to enable automatic tax calculation in test mode.' at /app/backend/server.py:474 stripe.checkout.Session.create(...). Client sees plain 500 Internal Server Error.",
+      "priority": "HIGH"
+    },
+    {
+      "area": "contract mismatch (docs vs code)",
+      "issue": "Review request said POST /api/ai/diagnose takes image_base64, but server DiagnoseRequest model requires photo_base64 (server.py:60-61, 285). Sending image_base64 returns 422. The endpoint itself works correctly with photo_base64 — no code fix needed unless frontend also uses image_base64 (CustomerDashboard/AIDiagnosticStudio should be double-checked to send photo_base64).",
+      "evidence": "422 on {image_base64: ...}; 200 with full diagnosis JSON on {photo_base64: ...}",
+      "priority": "LOW"
+    }
+  ],
+  "action_items": [
+    "Fix Stripe checkout: either (a) remove automatic_tax={'enabled': True} in server.py line 479, or (b) configure the Stripe test account head office address at https://dashboard.stripe.com/test/settings/tax. Recommended: set automatic_tax to False for the sandbox to unblock the payment flow immediately.",
+    "Verify frontend AI diagnosis component (AIDiagnosticStudio.jsx) posts photo_base64 (not image_base64) — server contract is photo_base64. Frontend UI was not exercised end-to-end for diagnose upload in this pass."
+  ],
+  "success_rate": {"backend": "92%", "frontend": "100%"},
+  "retest_needed": true,
+  "full_testing_deferred": true
+}
