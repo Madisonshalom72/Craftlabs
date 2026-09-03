@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
-import { http } from "@/lib/api";
+import BookingChat from "@/components/BookingChat";
+import { API, http } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
-  Star, MapPin, Clock, DollarSign, Sparkles, CheckCircle2, XCircle, Loader2, TrendingUp, Zap, Wallet,
+  Star, MapPin, Clock, DollarSign, Sparkles, CheckCircle2, XCircle, Loader2, TrendingUp, Zap, Wallet, MessageSquare, Radio,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,13 +14,16 @@ export default function HandymanDashboard() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [leads, setLeads] = useState([]);
+  const [assigned, setAssigned] = useState([]);
   const [tab, setTab] = useState("leads");
   const [saving, setSaving] = useState(false);
+  const [chatJob, setChatJob] = useState(null);
+  const [liveConnected, setLiveConnected] = useState(false);
+  const esRef = useRef(null);
 
   useEffect(() => {
     if (!loading && !user) navigate("/login");
     if (user?.role !== "handyman") {
-      // auto-assign role for logged-in user
       http.post("/auth/set-role", { role: "handyman" });
     }
   }, [user, loading, navigate]);
@@ -27,19 +31,47 @@ export default function HandymanDashboard() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [{ data: p }, { data: l }] = await Promise.all([
+      const [{ data: p }, { data: l }, { data: mine }] = await Promise.all([
         http.get(`/handymen/${user.user_id}`),
         http.get("/jobs?leads=true"),
+        http.get("/jobs").catch(() => ({ data: [] })),
       ]);
       setProfile(p);
       setLeads(l);
+      setAssigned(mine.filter(j => j.assigned_handyman_id === user.user_id));
     })();
+  }, [user]);
+
+  // Real-time lead SSE
+  useEffect(() => {
+    if (!user) return;
+    const es = new EventSource(`${API}/leads/stream`, { withCredentials: true });
+    esRef.current = es;
+    es.onopen = () => setLiveConnected(true);
+    es.onerror = () => setLiveConnected(false);
+    es.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data.ready) { setLiveConnected(true); return; }
+        if (data.job_id) {
+          setLeads(prev => {
+            if (prev.some(l => l.job_id === data.job_id)) return prev;
+            return [data, ...prev].sort((a,b) => (b.match_score||0) - (a.match_score||0));
+          });
+          toast.success(`New lead · ${data.match_score}% match`, {
+            description: data.title,
+          });
+        }
+      } catch {}
+    };
+    return () => { es.close(); esRef.current = null; };
   }, [user]);
 
   const acceptJob = async (job_id) => {
     try {
-      await http.post(`/jobs/${job_id}/accept`);
+      const { data } = await http.post(`/jobs/${job_id}/accept`);
       setLeads(l => l.filter(j => j.job_id !== job_id));
+      setAssigned(a => [data, ...a]);
       toast.success("Job accepted — customer notified");
     } catch { toast.error("Could not accept"); }
   };
@@ -84,21 +116,27 @@ export default function HandymanDashboard() {
             </h1>
             <p className="text-slate-400 mt-1 text-sm">{profile.role_title}</p>
           </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <span className="text-xs font-mono uppercase tracking-widest text-slate-400">Available</span>
-            <input
-              type="checkbox"
-              data-testid="availability-toggle"
-              checked={!!profile.available}
-              onChange={async (e) => {
-                setProfile(p => ({ ...p, available: e.target.checked }));
-                await http.put("/handymen/me", { available: e.target.checked });
-              }}
-              className="w-11 h-6 rounded-full appearance-none bg-white/10 checked:bg-emerald-500 relative transition cursor-pointer
-                before:content-[''] before:absolute before:top-0.5 before:left-0.5 before:w-5 before:h-5 before:bg-white before:rounded-full before:transition
-                checked:before:translate-x-5"
-            />
-          </label>
+          <div className="flex items-center gap-3">
+            <div data-testid="live-indicator" className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono uppercase tracking-widest border ${liveConnected ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-white/5 border-white/10 text-slate-500"}`}>
+              <Radio className={`w-3 h-3 ${liveConnected ? "animate-pulse" : ""}`} />
+              {liveConnected ? "Live · streaming" : "Offline"}
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-xs font-mono uppercase tracking-widest text-slate-400">Available</span>
+              <input
+                type="checkbox"
+                data-testid="availability-toggle"
+                checked={!!profile.available}
+                onChange={async (e) => {
+                  setProfile(p => ({ ...p, available: e.target.checked }));
+                  await http.put("/handymen/me", { available: e.target.checked });
+                }}
+                className="w-11 h-6 rounded-full appearance-none bg-white/10 checked:bg-emerald-500 relative transition cursor-pointer
+                  before:content-[''] before:absolute before:top-0.5 before:left-0.5 before:w-5 before:h-5 before:bg-white before:rounded-full before:transition
+                  checked:before:translate-x-5"
+              />
+            </label>
+          </div>
         </div>
 
         {/* Stats */}
@@ -116,7 +154,10 @@ export default function HandymanDashboard() {
 
         <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-xl border border-white/8 w-fit">
           <button data-testid="tab-leads" onClick={() => setTab("leads")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "leads" ? "bg-amber-500 text-slate-900" : "text-slate-300 hover:bg-white/5"}`}>
-            AI Job Leads
+            AI Job Leads {leads.length > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-900/40 text-[10px] font-mono">{leads.length}</span>}
+          </button>
+          <button data-testid="tab-active" onClick={() => setTab("active")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "active" ? "bg-amber-500 text-slate-900" : "text-slate-300 hover:bg-white/5"}`}>
+            Active Jobs {assigned.length > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-900/40 text-[10px] font-mono">{assigned.length}</span>}
           </button>
           <button data-testid="tab-profile" onClick={() => setTab("profile")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "profile" ? "bg-amber-500 text-slate-900" : "text-slate-300 hover:bg-white/5"}`}>
             Profile Studio
@@ -173,6 +214,44 @@ export default function HandymanDashboard() {
           </div>
         )}
 
+        {tab === "active" && (
+          <div className="space-y-3">
+            {assigned.length === 0 && (
+              <div className="glass rounded-2xl p-8 text-center">
+                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-slate-500" />
+                <p className="text-slate-400 text-sm">No active jobs yet. Accept a lead to start chatting with the homeowner.</p>
+              </div>
+            )}
+            {assigned.map(j => (
+              <div key={j.job_id} data-testid={`active-${j.job_id}`} className="glass rounded-2xl p-5">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="ai-badge">{j.category}</span>
+                      <span className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 rounded-full ${j.status === "paid" || j.status === "completed" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30" : "bg-white/5 text-slate-400 border border-white/10"}`}>
+                        {j.status}
+                      </span>
+                    </div>
+                    <h3 className="font-heading text-lg font-semibold">{j.title}</h3>
+                    <p className="text-xs text-slate-400 mt-1 line-clamp-2">{j.description}</p>
+                    <div className="flex items-center gap-4 mt-3 text-xs text-slate-400">
+                      <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{j.customer_name}</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{new Date(j.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <button
+                    data-testid={`chat-active-${j.job_id}`}
+                    onClick={() => setChatJob(j)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-semibold transition"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" /> Chat with {j.customer_name?.split(" ")[0]}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {tab === "profile" && (
           <div className="glass rounded-3xl p-6 max-w-3xl">
             <h3 className="font-heading text-xl font-bold mb-4">Profile Studio</h3>
@@ -212,6 +291,10 @@ export default function HandymanDashboard() {
           </div>
         )}
       </div>
+
+      {chatJob && (
+        <BookingChat job={chatJob} currentUser={user} onClose={() => setChatJob(null)} />
+      )}
     </div>
   );
 }

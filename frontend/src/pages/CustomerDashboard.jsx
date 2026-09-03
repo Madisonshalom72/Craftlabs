@@ -3,10 +3,12 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import AIDiagnosticStudio from "@/components/AIDiagnosticStudio";
 import AIChat from "@/components/AIChat";
+import BookingChat from "@/components/BookingChat";
+import ReviewModal from "@/components/ReviewModal";
 import { http } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
-  Sparkles, Star, MapPin, CheckCircle2, Loader2, Briefcase, Clock, DollarSign,
+  Sparkles, Star, MapPin, CheckCircle2, Loader2, Briefcase, Clock, DollarSign, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,13 +29,31 @@ export default function CustomerDashboard() {
   const [checkoutFor, setCheckoutFor] = useState(null);
   const [sessionId] = useState(() => `chat_${Math.random().toString(36).slice(2)}`);
   const [tab, setTab] = useState("diagnose");
+  const [chatJob, setChatJob] = useState(null);
+  const [reviewJob, setReviewJob] = useState(null);
+  const [reviewedIds, setReviewedIds] = useState({});
+
+  const refreshBookings = async () => {
+    const { data } = await http.get("/jobs?mine=true");
+    setBookings(data);
+    // Check review status
+    const reviews = {};
+    await Promise.all(data.filter(j => j.assigned_handyman_id).map(async (j) => {
+      try {
+        const { data: r } = await http.get(`/jobs/${j.job_id}/review`);
+        if (r) reviews[j.job_id] = r;
+      } catch {}
+    }));
+    setReviewedIds(reviews);
+  };
 
   useEffect(() => {
     if (!loading && !user) navigate("/login");
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (user) http.get("/jobs?mine=true").then(r => setBookings(r.data));
+    if (user) refreshBookings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const handleDiagnosis = async (d) => {
@@ -191,11 +211,42 @@ export default function CustomerDashboard() {
                   <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{new Date(j.created_at).toLocaleDateString()}</span>
                   {j.assigned_handyman_name && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{j.assigned_handyman_name}</span>}
                 </div>
+                {j.assigned_handyman_id && (
+                  <div className="mt-3 flex flex-wrap gap-2 pt-3 border-t border-white/8">
+                    <button
+                      data-testid={`open-chat-${j.job_id}`}
+                      onClick={() => setChatJob(j)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" /> Chat
+                    </button>
+                    {reviewedIds[j.job_id] ? (
+                      <span data-testid={`reviewed-${j.job_id}`} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
+                        <Star className="w-3.5 h-3.5 fill-emerald-400" /> {reviewedIds[j.job_id].rating}/5 reviewed
+                      </span>
+                    ) : (j.status === "paid" || j.status === "assigned" || j.status === "completed") ? (
+                      <button
+                        data-testid={`open-review-${j.job_id}`}
+                        onClick={() => setReviewJob(j)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/12 hover:border-amber-500/40 text-slate-200 text-xs font-semibold transition"
+                      >
+                        <Star className="w-3.5 h-3.5" /> Leave Review
+                      </button>
+                    ) : null}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {chatJob && (
+        <BookingChat job={chatJob} currentUser={user} onClose={() => setChatJob(null)} />
+      )}
+      {reviewJob && (
+        <ReviewModal job={reviewJob} onClose={() => setReviewJob(null)} onSubmitted={refreshBookings} />
+      )}
     </div>
   );
 }

@@ -13,6 +13,8 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
+import asyncio
+from collections import defaultdict
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent, TextDelta, StreamDone
 
@@ -93,6 +95,27 @@ class CheckoutRequest(BaseModel):
     origin_url: str
     job_id: Optional[str] = None
     handyman_id: Optional[str] = None
+
+
+class MessageCreate(BaseModel):
+    content: str
+
+
+class ReviewCreate(BaseModel):
+    rating: int  # 1..5
+    comment: Optional[str] = ""
+
+
+# ============ REAL-TIME LEAD FEED ============
+# In-memory pub/sub: handyman_id -> list of asyncio.Queues (one per open SSE connection)
+_lead_subscribers: Dict[str, List[asyncio.Queue]] = defaultdict(list)
+
+async def _broadcast_lead(handyman_id: str, payload: dict):
+    for q in list(_lead_subscribers.get(handyman_id, [])):
+        try:
+            q.put_nowait(payload)
+        except Exception:
+            pass
 
 
 # ============ AUTH HELPERS ============
@@ -419,7 +442,48 @@ async def create_job(payload: JobCreate,
     }
     await db.jobs.insert_one(doc)
     doc.pop("_id", None)
+    # Real-time broadcast to matched handymen (score >= 60)
+    try:
+        profiles = await db.handyman_profiles.find({"available": True}, {"_id": 0}).to_list(200)
+        for p in profiles:
+            score = _match_score(doc, p)
+            if score >= 60:
+                await _broadcast_lead(p["user_id"], {**doc, "match_score": score})
+    except Exception:
+        pass
     return doc
+
+
+# ============ REAL-TIME LEAD STREAM ============
+@api.get("/leads/stream")
+async def leads_stream(session_token: Optional[str] = Cookie(None),
+                       authorization: Optional[str] = Header(None),
+                       token: Optional[str] = None):
+    """SSE stream of new AI matches for the authenticated handyman."""
+    # Allow token via query param (EventSource can't set custom headers)
+    if token and not session_token and not authorization:
+        authorization = f"Bearer {token}"
+    user = await get_current_user(session_token, authorization)
+    q: asyncio.Queue = asyncio.Queue(maxsize=50)
+    _lead_subscribers[user["user_id"]].append(q)
+
+    async def gen():
+        try:
+            yield f"data: {jsonlib.dumps({'ready': True})}\n\n"
+            while True:
+                try:
+                    payload = await asyncio.wait_for(q.get(), timeout=25.0)
+                    yield f"data: {jsonlib.dumps(payload)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"
+        finally:
+            try:
+                _lead_subscribers[user["user_id"]].remove(q)
+            except ValueError:
+                pass
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @api.get("/jobs")
@@ -482,6 +546,113 @@ async def match_handymen(job_id: str):
         ranked.append({**u, **p, "match_score": score})
     ranked.sort(key=lambda x: -x["match_score"])
     return ranked[:6]
+
+
+# ============ BOOKING CHAT ============
+async def _assert_job_participant(job: dict, user: dict):
+    if user["user_id"] != job.get("customer_id") and user["user_id"] != job.get("assigned_handyman_id"):
+        raise HTTPException(403, "Not a participant of this job")
+
+
+@api.get("/jobs/{job_id}/messages")
+async def list_job_messages(job_id: str,
+                            session_token: Optional[str] = Cookie(None),
+                            authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    job = await db.jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(404, "Job not found")
+    await _assert_job_participant(job, user)
+    msgs = await db.booking_messages.find({"job_id": job_id}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    return msgs
+
+
+@api.post("/jobs/{job_id}/messages")
+async def send_job_message(job_id: str, payload: MessageCreate,
+                           session_token: Optional[str] = Cookie(None),
+                           authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    job = await db.jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(404, "Job not found")
+    await _assert_job_participant(job, user)
+    if not job.get("assigned_handyman_id"):
+        raise HTTPException(400, "Chat opens after a craftsman is assigned")
+    doc = {
+        "message_id": f"msg_{uuid.uuid4().hex[:12]}",
+        "job_id": job_id,
+        "sender_id": user["user_id"],
+        "sender_name": user["name"],
+        "sender_role": "customer" if user["user_id"] == job["customer_id"] else "handyman",
+        "content": payload.content.strip()[:2000],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.booking_messages.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+# ============ REVIEWS ============
+@api.post("/jobs/{job_id}/review")
+async def review_job(job_id: str, payload: ReviewCreate,
+                     session_token: Optional[str] = Cookie(None),
+                     authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    job = await db.jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if user["user_id"] != job.get("customer_id"):
+        raise HTTPException(403, "Only the customer can review")
+    if not job.get("assigned_handyman_id"):
+        raise HTTPException(400, "No assigned craftsman on this job")
+    if job.get("status") not in ("paid", "assigned", "completed"):
+        raise HTTPException(400, "Job not yet ready for review")
+    if not (1 <= payload.rating <= 5):
+        raise HTTPException(400, "Rating must be 1..5")
+    existing = await db.reviews.find_one({"job_id": job_id}, {"_id": 0})
+    if existing:
+        raise HTTPException(400, "Already reviewed")
+    handyman_id = job["assigned_handyman_id"]
+    review = {
+        "review_id": f"rev_{uuid.uuid4().hex[:12]}",
+        "job_id": job_id,
+        "customer_id": user["user_id"],
+        "customer_name": user["name"],
+        "customer_picture": user.get("picture"),
+        "handyman_id": handyman_id,
+        "rating": int(payload.rating),
+        "comment": (payload.comment or "").strip()[:1000],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.reviews.insert_one(review)
+    # Update handyman rating (weighted running average)
+    profile = await db.handyman_profiles.find_one({"user_id": handyman_id}, {"_id": 0})
+    if profile:
+        n = int(profile.get("reviews_count") or 0)
+        r = float(profile.get("rating") or 5.0)
+        new_n = n + 1
+        new_r = round((r * n + payload.rating) / new_n, 2)
+        await db.handyman_profiles.update_one(
+            {"user_id": handyman_id},
+            {"$set": {"rating": new_r, "reviews_count": new_n,
+                      "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+    # Mark job as completed
+    await db.jobs.update_one({"job_id": job_id}, {"$set": {"status": "completed"}})
+    review.pop("_id", None)
+    return review
+
+
+@api.get("/jobs/{job_id}/review")
+async def get_job_review(job_id: str):
+    r = await db.reviews.find_one({"job_id": job_id}, {"_id": 0})
+    return r or None
+
+
+@api.get("/handymen/{user_id}/reviews")
+async def list_handyman_reviews(user_id: str):
+    reviews = await db.reviews.find({"handyman_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return reviews
 
 
 # ============ PAYMENTS (Stripe Flow A) ============
