@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /handyman
+Disallow: /payment/
+
+Sitemap: https://fixit-ai-6.preview.emergentagent.com/sitemap.xml

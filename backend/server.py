@@ -998,6 +998,33 @@ async def root():
     return {"service": "CraftPulse AI API", "status": "ok"}
 
 
+@api.get("/sitemap.xml")
+async def sitemap_xml(request: Request):
+    """Live-generated sitemap covering every category landing page."""
+    from datetime import date
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    proto = request.headers.get("x-forwarded-proto") or "https"
+    site = (f"{proto}://{host}" if host else str(request.base_url).rstrip("/")).rstrip("/")
+    if site.endswith("/api"):
+        site = site[:-4]
+    today = date.today().isoformat()
+    all_cats = await categories()
+    entries = [
+        (f"{site}/",       "daily",   "1.0"),
+        (f"{site}/login",  "monthly", "0.6"),
+    ] + [(f"{site}/services/{c['id']}", "weekly", "0.9") for c in all_cats]
+    body = ['<?xml version="1.0" encoding="UTF-8"?>',
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for loc, cf, pr in entries:
+        body.append(
+            f"  <url><loc>{loc}</loc><lastmod>{today}</lastmod>"
+            f"<changefreq>{cf}</changefreq><priority>{pr}</priority></url>"
+        )
+    body.append("</urlset>")
+    from fastapi.responses import Response as FR
+    return FR(content="\n".join(body), media_type="application/xml")
+
+
 # ============ MOUNT ============
 app.include_router(api)
 
