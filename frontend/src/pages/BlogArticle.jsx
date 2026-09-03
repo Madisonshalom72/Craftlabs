@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { http } from "@/lib/api";
+import { autoLinkBrands } from "@/lib/autolink";
 import {
   Loader2, ArrowRight, Clock, Sparkles, ChevronRight, BookOpen, CheckCircle2,
 } from "lucide-react";
@@ -126,6 +127,10 @@ export default function BlogArticle() {
   }
 
   const hero = CATEGORY_HERO[slug] || CATEGORY_HERO.general;
+  // Shared set: each brand auto-links only once per article (first occurrence).
+  // Reset on every render so it stays deterministic for the current article.
+  const seenBrands = new Set();
+  const linkify = (text) => autoLinkBrands(text, slug, seenBrands);
 
   return (
     <div className="min-h-screen">
@@ -166,7 +171,7 @@ export default function BlogArticle() {
         {/* Intro */}
         <div data-testid="blog-intro" className="mt-10 text-lg leading-relaxed text-slate-200 space-y-4">
           {(article.intro || "").split(/\n\n+/).filter(Boolean).map((p, i) => (
-            <p key={i}>{p}</p>
+            <p key={i}>{linkify(p)}</p>
           ))}
         </div>
 
@@ -179,7 +184,7 @@ export default function BlogArticle() {
               </h2>
               <div className="text-slate-300 leading-relaxed space-y-4">
                 {(s.body || "").split(/\n\n+/).filter(Boolean).map((p, j) => (
-                  <p key={j}>{p}</p>
+                  <p key={j}>{linkify(p)}</p>
                 ))}
               </div>
             </section>
@@ -197,7 +202,7 @@ export default function BlogArticle() {
                   <div className="w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center text-xs font-mono flex-shrink-0 mt-0.5">
                     {i + 1}
                   </div>
-                  <span className="leading-relaxed">{t}</span>
+                  <span className="leading-relaxed">{linkify(t)}</span>
                 </li>
               ))}
             </ul>
@@ -212,7 +217,7 @@ export default function BlogArticle() {
               {article.faq.map((f, i) => (
                 <div key={i} className="glass rounded-2xl p-5">
                   <h4 className="font-heading font-semibold text-lg mb-2">{f.q}</h4>
-                  <p className="text-slate-300 text-sm leading-relaxed">{f.a}</p>
+                  <p className="text-slate-300 text-sm leading-relaxed">{linkify(f.a)}</p>
                 </div>
               ))}
             </div>
