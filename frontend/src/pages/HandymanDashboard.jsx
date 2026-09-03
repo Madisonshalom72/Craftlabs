@@ -23,8 +23,9 @@ export default function HandymanDashboard() {
 
   useEffect(() => {
     if (!loading && !user) navigate("/login");
-    if (user?.role !== "handyman") {
-      http.post("/auth/set-role", { role: "handyman" });
+    if (!loading && user && user.role !== "handyman") {
+      // Wrong dashboard — send them home instead of hijacking their role
+      navigate("/dashboard", { replace: true });
     }
   }, [user, loading, navigate]);
 

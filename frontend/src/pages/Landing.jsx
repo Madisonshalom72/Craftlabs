@@ -5,9 +5,13 @@ import { http } from "@/lib/api";
 import {
   ArrowRight, Zap, Droplet, Wind, Hammer, Home, Radio, Wrench,
   ScanEye, Sparkles, ShieldCheck, Star, MapPin, Clock,
+  PanelTop, DoorOpen, TrendingUp, Paintbrush, Grid3x3, Refrigerator, Fence, KeyRound,
 } from "lucide-react";
 
-const CATEGORY_ICONS = { Zap, Droplet, Wind, Hammer, Home, Radio, Wrench };
+const CATEGORY_ICONS = {
+  Zap, Droplet, Wind, Hammer, Home, Radio, Wrench,
+  PanelTop, DoorOpen, TrendingUp, Paintbrush, Grid3x3, Refrigerator, Fence, KeyRound,
+};
 
 export default function Landing() {
   const [handymen, setHandymen] = useState([]);
@@ -101,7 +105,7 @@ export default function Landing() {
           </div>
           <Link to="/login" className="hidden sm:inline text-sm text-amber-400 hover:text-amber-300 font-medium">Browse craftsmen →</Link>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {categories.map(c => {
             const Icon = CATEGORY_ICONS[c.icon] || Wrench;
             return (

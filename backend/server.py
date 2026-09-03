@@ -310,7 +310,7 @@ async def ai_diagnose(payload: DiagnoseRequest):
         "You are CraftPulse AI, an expert home-repair vision diagnostician. "
         "Analyze the uploaded image of a broken or malfunctioning household item. "
         "Respond ONLY with valid JSON matching this schema: "
-        '{"issue": string, "category": one of ["Electrical","Plumbing","HVAC","Carpentry","Roofing","Smart Home","General"], '
+        '{"issue": string, "category": one of ["Electrical","Plumbing","HVAC","Carpentry","Roofing","Smart Home","Windows","Doors","Stairs & Railings","Painting","Tile & Masonry","Appliance Repair","Deck & Fencing","Locksmith","General"], '
         '"severity": one of ["Low","Medium","High","Critical"], '
         '"severity_score": integer 1-100, '
         '"root_cause": string, '
@@ -787,13 +787,21 @@ async def stripe_webhook(request: Request):
 @api.get("/categories")
 async def categories():
     return [
-        {"id": "electrical", "name": "Electrical", "icon": "Zap"},
-        {"id": "plumbing", "name": "Plumbing", "icon": "Droplet"},
-        {"id": "hvac", "name": "HVAC", "icon": "Wind"},
-        {"id": "carpentry", "name": "Carpentry", "icon": "Hammer"},
-        {"id": "roofing", "name": "Roofing", "icon": "Home"},
-        {"id": "smart_home", "name": "Smart Home", "icon": "Radio"},
-        {"id": "general", "name": "General Repair", "icon": "Wrench"},
+        {"id": "electrical",   "name": "Electrical",         "icon": "Zap"},
+        {"id": "plumbing",     "name": "Plumbing",           "icon": "Droplet"},
+        {"id": "hvac",         "name": "HVAC",               "icon": "Wind"},
+        {"id": "carpentry",    "name": "Carpentry",          "icon": "Hammer"},
+        {"id": "roofing",      "name": "Roofing",            "icon": "Home"},
+        {"id": "smart_home",   "name": "Smart Home",         "icon": "Radio"},
+        {"id": "windows",      "name": "Windows",            "icon": "PanelTop"},
+        {"id": "doors",        "name": "Doors",              "icon": "DoorOpen"},
+        {"id": "stairs",       "name": "Stairs & Railings",  "icon": "TrendingUp"},
+        {"id": "painting",     "name": "Painting",           "icon": "Paintbrush"},
+        {"id": "tiling",       "name": "Tile & Masonry",     "icon": "Grid3x3"},
+        {"id": "appliance",    "name": "Appliance Repair",   "icon": "Refrigerator"},
+        {"id": "deck_fence",   "name": "Deck & Fencing",     "icon": "Fence"},
+        {"id": "locksmith",    "name": "Locksmith",          "icon": "KeyRound"},
+        {"id": "general",      "name": "General Repair",     "icon": "Wrench"},
     ]
 
 
