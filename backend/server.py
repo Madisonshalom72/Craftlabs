@@ -784,6 +784,135 @@ async def stripe_webhook(request: Request):
 
 
 # ============ CATEGORIES / STATS ============
+CATEGORY_CONTENT = {
+    "electrical": {
+        "hero_kicker": "NYC Electrical Contractors",
+        "hero_title": "Licensed Electricians on demand",
+        "hero_sub": "IBEW-certified pros for outlets, panels, EV chargers, and smart-home rewiring across all five boroughs.",
+        "keywords": ["electrical repair NYC", "electrician near me", "outlet installation", "EV charger installer"],
+        "faq": [
+            {"q": "Are all your electricians licensed?", "a": "Every electrician on CraftPulse holds an NYC master or journeyman license and current liability insurance, verified before onboarding."},
+            {"q": "How fast can I get someone for a sparking outlet?", "a": "Emergency electrical work usually gets a same-day dispatch. The AI flags critical severity and pushes it to available pros within minutes."},
+            {"q": "Do you install Tesla Wall Connectors?", "a": "Yes — several of our master electricians are Tesla-certified for Wall Connector and Universal installs."},
+        ],
+    },
+    "plumbing": {
+        "hero_kicker": "NYC Plumbing Services",
+        "hero_title": "Master plumbers, 24/7",
+        "hero_sub": "Licensed plumbers for leaks, water heaters, radiant heat, and pipe repairs — with real-time price estimates.",
+        "keywords": ["emergency plumber NYC", "leak repair", "water heater install", "tankless heater NYC"],
+        "faq": [
+            {"q": "Can you handle a burst pipe right now?", "a": "Yes. Snap a photo, and CraftPulse AI dispatches the nearest available licensed plumber with an ETA under an hour in most boroughs."},
+            {"q": "Do you replace tankless water heaters?", "a": "We have specialists for Rinnai, Navien, and Rheem tankless installs, including gas line upgrades where needed."},
+        ],
+    },
+    "hvac": {
+        "hero_kicker": "NYC HVAC Technicians",
+        "hero_title": "NATE-certified heating & cooling",
+        "hero_sub": "Mini-splits, heat pumps, and central air — installed, serviced, and tuned by seasoned techs.",
+        "keywords": ["HVAC repair NYC", "mini split installer", "heat pump NYC"],
+        "faq": [
+            {"q": "How much for a mini-split install?", "a": "Single-zone Mitsubishi or Fujitsu installs typically run $3,800-$5,200 including electrical. Get a firm quote after uploading a photo of the install area."},
+        ],
+    },
+    "carpentry": {
+        "hero_kicker": "Master Carpenters NYC",
+        "hero_title": "Bespoke carpentry & cabinetry",
+        "hero_sub": "Trim, cabinets, flooring, and structural repairs from woodworkers with 15+ years on the tools.",
+        "keywords": ["carpenter NYC", "cabinet install", "trim carpentry", "hardwood floor repair"],
+        "faq": [],
+    },
+    "roofing": {
+        "hero_kicker": "NYC Roofers",
+        "hero_title": "Roof repair & waterproofing",
+        "hero_sub": "GAF Master Elite contractors for flat roofs, slate, gutters, and chimney flashing.",
+        "keywords": ["roof repair NYC", "flat roof contractor", "chimney flashing"],
+        "faq": [],
+    },
+    "smart_home": {
+        "hero_kicker": "Smart Home Installers",
+        "hero_title": "Nest, HomeKit & Alexa setup",
+        "hero_sub": "From smart locks to whole-home mesh Wi-Fi, our techs configure the ecosystem, not just the device.",
+        "keywords": ["smart home installer NYC", "Nest thermostat install", "smart lock installer"],
+        "faq": [],
+    },
+    "windows": {
+        "hero_kicker": "Window Installation NYC",
+        "hero_title": "Window replacement & repair",
+        "hero_sub": "Andersen and Pella certified installers for double-hung, casement, and picture windows with proper flashing and weatherproofing.",
+        "keywords": ["window installation NYC", "window replacement", "storm window installer", "Andersen installer"],
+        "faq": [
+            {"q": "How long does a window replacement take?", "a": "A standard double-hung window swap is typically 45-90 minutes per opening once the installer has access to both sides."},
+            {"q": "Do you install storm windows?", "a": "Yes — we install Pella, Larson, and Andersen storm windows over existing sashes, ideal for pre-war NYC brownstones."},
+        ],
+    },
+    "doors": {
+        "hero_kicker": "Door Installation NYC",
+        "hero_title": "Front, patio & interior door installs",
+        "hero_sub": "Steel entry doors, French doors, sliding patio, and hollow-core interiors — hung plumb, flashed dry, and gasket-sealed.",
+        "keywords": ["door installation NYC", "front door replacement", "sliding door installer", "interior door hanging"],
+        "faq": [
+            {"q": "Can you replace a warped front door?", "a": "Yes. Most steel or fiberglass entry-door replacements take a half day including new threshold, weather-stripping, and lockset transfer."},
+        ],
+    },
+    "stairs": {
+        "hero_kicker": "Staircase Builders NYC",
+        "hero_title": "Custom stairs & code-compliant railings",
+        "hero_sub": "Interior staircases, iron and cable railings, tread replacements, and squeak silencing — from a fabricator featured in Dwell.",
+        "keywords": ["staircase builder NYC", "stair repair", "railing installation", "baluster replacement"],
+        "faq": [
+            {"q": "Can you retrofit an old railing to code?", "a": "Absolutely. NYC requires 42-inch handrails on stairs with 4+ risers — we retrofit with iron, cable, or wood balusters that pass inspection."},
+        ],
+    },
+    "painting": {
+        "hero_kicker": "House Painters NYC",
+        "hero_title": "Interior painting & wallpaper",
+        "hero_sub": "Benjamin Moore Preferred contractors — zero-VOC paints, Level-5 smooth walls, cabinet refinishing, and same-week bookings.",
+        "keywords": ["house painter NYC", "interior painter", "cabinet painting", "wallpaper installer"],
+        "faq": [],
+    },
+    "tiling": {
+        "hero_kicker": "Tile & Masonry NYC",
+        "hero_title": "Tile setters & stone masons",
+        "hero_sub": "Backsplashes, heated bathroom floors, herringbone hardwood-look tile, and natural-stone restoration.",
+        "keywords": ["tile installer NYC", "backsplash installer", "grout restoration", "stone mason"],
+        "faq": [],
+    },
+    "appliance": {
+        "hero_kicker": "Appliance Repair NYC",
+        "hero_title": "All-brand appliance repair",
+        "hero_sub": "Sub-Zero, Bosch, LG, Samsung — factory-certified techs for refrigeration, washer/dryer, dishwashers, and ovens.",
+        "keywords": ["appliance repair NYC", "Sub-Zero repair", "washer dryer fix", "dishwasher repair"],
+        "faq": [
+            {"q": "Same-day repair possible?", "a": "For refrigeration failures, yes — we prioritize dispatch. Most fridge and dishwasher fixes are same-day."},
+        ],
+    },
+    "deck_fence": {
+        "hero_kicker": "Deck & Fence NYC",
+        "hero_title": "Decks, pergolas, and privacy fencing",
+        "hero_sub": "Trex Pro Platinum installers, Ipe hardwood decks, cedar privacy fences, and pergolas with integrated lighting.",
+        "keywords": ["deck builder NYC", "fence installer", "Trex deck", "pergola installer"],
+        "faq": [],
+    },
+    "locksmith": {
+        "hero_kicker": "24/7 Locksmith NYC",
+        "hero_title": "Locksmith & smart-lock retrofits",
+        "hero_sub": "Under-20-minute lockouts, Medeco high-security rekeys, and August/Yale/Level smart-lock installs.",
+        "keywords": ["locksmith NYC", "smart lock installer", "rekey service", "emergency lockout"],
+        "faq": [
+            {"q": "How fast for a lockout?", "a": "Most Manhattan and Brooklyn lockouts get an ALOA-member locksmith on-site in 15-20 minutes, 24/7."},
+        ],
+    },
+    "general": {
+        "hero_kicker": "General Handyman NYC",
+        "hero_title": "One call, every small fix",
+        "hero_sub": "TV mounting, drywall patches, furniture assembly, and the little things you keep putting off.",
+        "keywords": ["handyman NYC", "TV mounting", "furniture assembly", "drywall repair"],
+        "faq": [],
+    },
+}
+
+
 @api.get("/categories")
 async def categories():
     return [
@@ -803,6 +932,55 @@ async def categories():
         {"id": "locksmith",    "name": "Locksmith",          "icon": "KeyRound"},
         {"id": "general",      "name": "General Repair",     "icon": "Wrench"},
     ]
+
+
+_SKILL_MATCH_BY_SLUG = {
+    "electrical": ["electrical", "ev charging", "lighting"],
+    "plumbing":   ["plumbing", "water heaters", "leak detection", "hydronic heating"],
+    "hvac":       ["hvac", "heat pumps", "ductwork", "refrigeration"],
+    "carpentry":  ["carpentry", "cabinetry", "trim & molding", "flooring"],
+    "roofing":    ["roofing", "waterproofing", "gutters", "chimney repair"],
+    "smart_home": ["smart home"],
+    "windows":    ["windows", "glass repair", "weatherproofing"],
+    "doors":      ["doors", "weatherproofing"],
+    "stairs":     ["stairs & railings", "balusters", "metalwork"],
+    "painting":   ["painting", "wallpaper", "plaster repair"],
+    "tiling":     ["tile & masonry", "grout restoration", "natural stone", "backsplash"],
+    "appliance":  ["appliance repair", "washer/dryer", "dishwasher"],
+    "deck_fence": ["deck & fencing", "composite decking", "pergolas"],
+    "locksmith":  ["locksmith", "security"],
+    "general":    ["general repair", "drywall", "tv mounting"],
+}
+
+
+@api.get("/categories/{slug}")
+async def category_detail(slug: str):
+    all_cats = await categories()
+    cat = next((c for c in all_cats if c["id"] == slug), None)
+    if not cat:
+        raise HTTPException(404, "Unknown category")
+    content = CATEGORY_CONTENT.get(slug, {})
+    match_skills = _SKILL_MATCH_BY_SLUG.get(slug, [slug.replace("_", " ")])
+    profiles = await db.handyman_profiles.find({}, {"_id": 0}).to_list(200)
+    matched = []
+    for p in profiles:
+        skills_lower = [s.lower() for s in p.get("skills", [])]
+        if any(m in skills_lower for m in match_skills):
+            u = await db.users.find_one({"user_id": p["user_id"]}, {"_id": 0})
+            if u:
+                matched.append({**u, **p, "distance_miles": _distance_miles(p["user_id"])})
+    matched.sort(key=lambda x: (-x.get("rating", 0), -x.get("reviews_count", 0)))
+    top = matched[:3]
+    avg_rate = round(sum(p.get("hourly_rate", 0) for p in matched) / max(len(matched), 1))
+    avg_rating = round(sum(p.get("rating", 0) for p in matched) / max(len(matched), 1), 2) if matched else 5.0
+    return {
+        "category": cat,
+        **content,
+        "top_pros": top,
+        "total_pros": len(matched),
+        "avg_hourly_rate": avg_rate,
+        "avg_rating": avg_rating,
+    }
 
 
 @api.get("/tiers")

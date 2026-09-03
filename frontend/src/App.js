@@ -8,6 +8,7 @@ import Login from "@/pages/Login";
 import AuthCallback from "@/pages/AuthCallback";
 import CustomerDashboard from "@/pages/CustomerDashboard";
 import HandymanDashboard from "@/pages/HandymanDashboard";
+import CategoryPage from "@/pages/CategoryPage";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 
@@ -19,6 +20,7 @@ function AppRouter() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/services/:slug" element={<CategoryPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/dashboard" element={<CustomerDashboard />} />
       <Route path="/handyman" element={<HandymanDashboard />} />

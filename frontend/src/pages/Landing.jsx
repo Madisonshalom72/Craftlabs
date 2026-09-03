@@ -95,7 +95,7 @@ export default function Landing() {
       </section>
 
       {/* CATEGORIES */}
-      <section className="max-w-7xl mx-auto px-5 lg:px-8 py-10">
+      <section id="services" className="max-w-7xl mx-auto px-5 lg:px-8 py-10">
         <div className="flex items-end justify-between mb-8">
           <div>
             <div className="ai-badge mb-3">Services</div>
@@ -109,16 +109,17 @@ export default function Landing() {
           {categories.map(c => {
             const Icon = CATEGORY_ICONS[c.icon] || Wrench;
             return (
-              <div
+              <Link
                 key={c.id}
+                to={`/services/${c.id}`}
                 data-testid={`category-${c.id}`}
-                className="glass rounded-2xl p-4 flex flex-col items-start gap-3 hover:border-amber-500/40 transition cursor-pointer group"
+                className="glass rounded-2xl p-4 flex flex-col items-start gap-3 hover:border-amber-500/40 hover:-translate-y-0.5 transition cursor-pointer group"
               >
                 <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/20 transition">
                   <Icon className="w-5 h-5 text-amber-400" />
                 </div>
                 <div className="text-sm font-semibold text-slate-100">{c.name}</div>
-              </div>
+              </Link>
             );
           })}
         </div>
