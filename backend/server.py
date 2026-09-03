@@ -321,7 +321,9 @@ async def ai_diagnose(payload: DiagnoseRequest):
         '"estimated_price_max": integer USD, '
         '"recommended_tier": one of ["quick_fix","standard_repair","major_project","emergency_call"], '
         '"diy_feasible": boolean, '
-        '"safety_notes": string} '
+        '"safety_notes": string, '
+        '"regions": [ {"label": short string (<=32 chars), "severity": one of ["Low","Medium","High","Critical"], "x": float 0-1, "y": float 0-1, "w": float 0-1, "h": float 0-1} ] '
+        "where regions is 1..4 bounding boxes marking the specific spots you flagged in the image, in normalized image coords (x,y = top-left, w,h = size, all 0..1). "
         "No markdown fences, no prose outside JSON."
     )
     chat = _get_llm(f"diagnose_{uuid.uuid4().hex[:8]}", sys)
@@ -356,7 +358,25 @@ async def ai_diagnose(payload: DiagnoseRequest):
             "estimated_price_min": 120, "estimated_price_max": 220,
             "recommended_tier": "standard_repair",
             "diy_feasible": False, "safety_notes": "",
+            "regions": [],
         }
+    # Sanitize regions
+    regions = []
+    for r in (result.get("regions") or []):
+        try:
+            x = max(0.0, min(1.0, float(r.get("x", 0))))
+            y = max(0.0, min(1.0, float(r.get("y", 0))))
+            w = max(0.02, min(1.0 - x, float(r.get("w", 0.1))))
+            h = max(0.02, min(1.0 - y, float(r.get("h", 0.1))))
+            regions.append({
+                "label": str(r.get("label", "flag"))[:32],
+                "severity": r.get("severity", result.get("severity", "Medium")),
+                "x": round(x, 4), "y": round(y, 4),
+                "w": round(w, 4), "h": round(h, 4),
+            })
+        except Exception:
+            continue
+    result["regions"] = regions[:4]
     return result
 
 
@@ -407,6 +427,13 @@ async def chat_history(session_id: str):
 
 
 # ============ JOBS ============
+def _distance_miles(user_id: str) -> float:
+    """Deterministic pseudo-distance for a handyman in miles (1.2 - 14.8)."""
+    h = 0
+    for c in user_id or "":
+        h = (h * 31 + ord(c)) & 0xFFFFFFFF
+    return round(1.2 + (h % 1361) / 100.0, 1)  # 1.2 .. 14.8
+
 def _match_score(job: dict, profile: dict) -> int:
     """Deterministic matching heuristic combining skill overlap, rating, price, and experience."""
     cat = (job.get("category") or "").lower()
@@ -531,8 +558,9 @@ async def accept_job(job_id: str, session_token: Optional[str] = Cookie(None),
 
 
 @api.post("/jobs/{job_id}/match")
-async def match_handymen(job_id: str):
-    """Return top handymen ranked by match score for a specific job."""
+async def match_handymen(job_id: str, max_distance: Optional[float] = None):
+    """Return handymen ranked by match score (skill + rating + experience + rate + proximity).
+    Optional query param max_distance filters out craftsmen farther than N miles."""
     job = await db.jobs.find_one({"job_id": job_id}, {"_id": 0})
     if not job:
         raise HTTPException(404, "Job not found")
@@ -542,10 +570,16 @@ async def match_handymen(job_id: str):
         u = await db.users.find_one({"user_id": p["user_id"]}, {"_id": 0})
         if not u:
             continue
-        score = _match_score(job, p)
-        ranked.append({**u, **p, "match_score": score})
+        dist = _distance_miles(p["user_id"])
+        if max_distance is not None and dist > max_distance:
+            continue
+        base = _match_score(job, p)
+        # Proximity boost: closer = up to +8 pts (10 miles ≈ 0)
+        prox = max(0, 8 - int(dist * 0.8))
+        score = min(99, base + prox)
+        ranked.append({**u, **p, "match_score": score, "distance_miles": dist})
     ranked.sort(key=lambda x: -x["match_score"])
-    return ranked[:6]
+    return ranked[:8]
 
 
 # ============ BOOKING CHAT ============

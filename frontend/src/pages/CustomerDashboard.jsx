@@ -32,6 +32,8 @@ export default function CustomerDashboard() {
   const [chatJob, setChatJob] = useState(null);
   const [reviewJob, setReviewJob] = useState(null);
   const [reviewedIds, setReviewedIds] = useState({});
+  const [maxDistance, setMaxDistance] = useState(15);
+  const [currentJobId, setCurrentJobId] = useState(null);
 
   const refreshBookings = async () => {
     const { data } = await http.get("/jobs?mine=true");
@@ -69,6 +71,7 @@ export default function CustomerDashboard() {
         ai_diagnosis: d,
         tier: d.recommended_tier || "standard_repair",
       });
+      setCurrentJobId(job.job_id);
       const { data: ranked } = await http.post(`/jobs/${job.job_id}/match`);
       setMatches(ranked.map(r => ({ ...r, _job_id: job.job_id })));
       const list = await http.get("/jobs?mine=true");
@@ -79,6 +82,19 @@ export default function CustomerDashboard() {
       setMatching(false);
     }
   };
+
+  // Re-fetch matches when the distance slider changes
+  useEffect(() => {
+    if (!currentJobId) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await http.post(`/jobs/${currentJobId}/match?max_distance=${maxDistance}`);
+        if (!cancelled) setMatches(data.map(r => ({ ...r, _job_id: currentJobId })));
+      } catch {}
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [maxDistance, currentJobId]);
 
   const book = async (handyman) => {
     setCheckoutFor(handyman.user_id);
@@ -136,12 +152,42 @@ export default function CustomerDashboard() {
                   <Sparkles className="w-4 h-4 text-amber-400" />
                   <h3 className="font-heading text-lg font-bold">Smart Matches</h3>
                 </div>
+                {diagnosis && (
+                  <div data-testid="distance-filter" className="mb-4 p-3 rounded-2xl bg-slate-900/50 border border-white/8">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3" /> Within
+                      </span>
+                      <span data-testid="distance-value" className="font-mono text-xs text-amber-400 font-semibold">{maxDistance} mi</span>
+                    </div>
+                    <input
+                      data-testid="distance-slider"
+                      type="range"
+                      min="1"
+                      max="25"
+                      step="1"
+                      value={maxDistance}
+                      onChange={(e) => setMaxDistance(Number(e.target.value))}
+                      className="w-full h-1.5 rounded-full appearance-none bg-white/8 accent-amber-500 cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[9px] font-mono uppercase tracking-widest text-slate-500 mt-1">
+                      <span>1 mi</span><span>25 mi</span>
+                    </div>
+                  </div>
+                )}
                 {!diagnosis && (
                   <p className="text-sm text-slate-500">Run a diagnosis to see AI-ranked craftsmen for your job.</p>
                 )}
                 {matching && (
                   <div className="space-y-3">
                     {[1,2,3].map(i => <div key={i} className="h-16 rounded-xl shimmer bg-white/5" />)}
+                  </div>
+                )}
+                {!matching && diagnosis && matches.length === 0 && (
+                  <div data-testid="no-matches" className="text-center py-8">
+                    <MapPin className="w-8 h-8 mx-auto mb-2 text-slate-600" />
+                    <p className="text-sm text-slate-400">No craftsmen within {maxDistance} miles.</p>
+                    <p className="text-xs text-slate-500 mt-1">Try widening the search radius.</p>
                   </div>
                 )}
                 {!matching && matches.length > 0 && (
@@ -160,6 +206,14 @@ export default function CustomerDashboard() {
                               <span className="flex items-center gap-1 text-slate-300"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{m.rating}</span>
                               <span className="text-slate-500">·</span>
                               <span className="font-mono text-amber-400">${m.hourly_rate}/hr</span>
+                              {m.distance_miles !== undefined && (
+                                <>
+                                  <span className="text-slate-500">·</span>
+                                  <span data-testid={`distance-${m.user_id}`} className="flex items-center gap-1 text-cyan-400 font-mono">
+                                    <MapPin className="w-3 h-3" />{m.distance_miles}mi
+                                  </span>
+                                </>
+                              )}
                             </div>
                           </div>
                           <div className="text-right">

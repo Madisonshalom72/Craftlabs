@@ -10,6 +10,12 @@ const SAMPLE_IMAGES = [
 ];
 
 const SEVERITY_COLOR = { Low: "text-emerald-400", Medium: "text-amber-400", High: "text-orange-400", Critical: "text-red-400" };
+const REGION_BORDER = {
+  Low:      { border: "border-emerald-400/80", bg: "bg-emerald-400/10", label: "bg-emerald-400 text-slate-900" },
+  Medium:   { border: "border-amber-400/80",   bg: "bg-amber-400/10",   label: "bg-amber-400 text-slate-900" },
+  High:     { border: "border-orange-400/80",  bg: "bg-orange-400/10",  label: "bg-orange-400 text-slate-900" },
+  Critical: { border: "border-red-500/90",     bg: "bg-red-500/12",     label: "bg-red-500 text-white" },
+};
 
 export default function AIDiagnosticStudio({ onDiagnosis }) {
   const [image, setImage] = useState(null); // {base64, preview}
@@ -20,6 +26,7 @@ export default function AIDiagnosticStudio({ onDiagnosis }) {
 
   const handleFile = async (file) => {
     if (!file) return;
+    setResult(null);
     const reader = new FileReader();
     reader.onload = () => setImage({ base64: reader.result, preview: reader.result });
     reader.readAsDataURL(file);
@@ -27,6 +34,7 @@ export default function AIDiagnosticStudio({ onDiagnosis }) {
 
   const loadSample = async (url) => {
     setLoading(true);
+    setResult(null);
     try {
       const res = await fetch(url);
       const blob = await res.blob();
@@ -78,6 +86,33 @@ export default function AIDiagnosticStudio({ onDiagnosis }) {
             {image?.preview ? (
               <>
                 <img src={image.preview} alt="preview" className="w-full h-full object-cover" />
+                {/* AI Vision bounding-box overlays */}
+                {!loading && result?.regions?.length > 0 && (
+                  <div data-testid="vision-overlay" className="absolute inset-0 pointer-events-none">
+                    {result.regions.map((r, i) => {
+                      const style = REGION_BORDER[r.severity] || REGION_BORDER.Medium;
+                      return (
+                        <div
+                          key={i}
+                          data-testid={`region-${i}`}
+                          className={`absolute border-2 rounded-md ${style.border} ${style.bg} transition-all duration-500`}
+                          style={{
+                            left: `${r.x * 100}%`, top: `${r.y * 100}%`,
+                            width: `${r.w * 100}%`, height: `${r.h * 100}%`,
+                            boxShadow: "0 0 0 2px rgba(0,0,0,0.35)",
+                          }}
+                        >
+                          <span className={`absolute -top-6 left-0 text-[10px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded ${style.label}`}>
+                            {r.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    <div className="absolute top-2 right-2 ai-badge">
+                      <ScanEye className="w-3 h-3" /> {result.regions.length} flagged
+                    </div>
+                  </div>
+                )}
                 {loading && (
                   <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center">
                     <div className="flex flex-col items-center gap-2">
