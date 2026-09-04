@@ -267,6 +267,20 @@ export default function CustomerDashboard() {
                                 </>
                               )}
                             </div>
+                            {(m.matched_skills || []).length > 0 && (
+                              <div data-testid={`matched-skills-${m.user_id}`} className="mt-2 flex flex-wrap gap-1">
+                                {m.matched_skills.slice(0, 3).map(s => (
+                                  <span key={s} className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-1">
+                                    <CheckCircle2 className="w-2.5 h-2.5" />{s}
+                                  </span>
+                                ))}
+                                {m.score_reasons?.multi_skill_boost > 0 && (
+                                  <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-400">
+                                    +{m.score_reasons.multi_skill_boost} boost
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                           <div className="text-right">
                             <div className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Match</div>

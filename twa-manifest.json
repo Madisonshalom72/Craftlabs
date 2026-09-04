@@ -1,0 +1,46 @@
+{
+  "packageId": "ai.craftpulse.twa",
+  "host": "fixit-ai-6.preview.emergentagent.com",
+  "name": "CraftPulse AI",
+  "launcherName": "CraftPulse",
+  "display": "standalone",
+  "themeColor": "#F59E0B",
+  "themeColorDark": "#0B0D11",
+  "navigationColor": "#0B0D11",
+  "navigationColorDark": "#0B0D11",
+  "navigationDividerColor": "#0B0D11",
+  "backgroundColor": "#0B0D11",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://fixit-ai-6.preview.emergentagent.com/icon-512.png",
+  "maskableIconUrl": "https://fixit-ai-6.preview.emergentagent.com/icon-512-maskable.png",
+  "monochromeIconUrl": "https://fixit-ai-6.preview.emergentagent.com/icon-512.png",
+  "shortcuts": [
+    { "name": "Diagnose a repair", "short_name": "Diagnose", "url": "/login", "chosenIconUrl": "https://fixit-ai-6.preview.emergentagent.com/icon-192.png" },
+    { "name": "Field Notes", "short_name": "Guides", "url": "/blog", "chosenIconUrl": "https://fixit-ai-6.preview.emergentagent.com/icon-192.png" }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://fixit-ai-6.preview.emergentagent.com/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": { "enabled": false },
+    "playBilling": { "enabled": false }
+  },
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "orientation": "default",
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shareTarget": {
+    "action": "/share",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  }
+}

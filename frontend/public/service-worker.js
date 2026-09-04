@@ -77,3 +77,33 @@ self.addEventListener("fetch", (event) => {
       .catch(() => caches.match(req).then((hit) => hit || caches.match("/")))
   );
 });
+
+/* ---------- Push notifications ---------- */
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch { payload = { body: (event.data && event.data.text()) || "" }; }
+  const title = payload.title || "CraftPulse AI";
+  const opts = {
+    body:  payload.body  || "",
+    icon:  payload.icon  || "/icon-192.png",
+    badge: payload.badge || "/icon-192.png",
+    tag:   payload.tag,
+    data:  { url: payload.url || "/handyman", ...(payload.data || {}) },
+    vibrate: [80, 40, 80],
+    requireInteraction: false,
+  };
+  event.waitUntil(self.registration.showNotification(title, opts));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || "/handyman";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      for (const c of wins) {
+        if (c.url.includes(new URL(targetUrl, self.location.origin).pathname)) return c.focus();
+      }
+      return self.clients.openWindow(targetUrl);
+    })
+  );
+});

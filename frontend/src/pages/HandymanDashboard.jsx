@@ -5,9 +5,10 @@ import BookingChat from "@/components/BookingChat";
 import { API, http } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
-  Star, MapPin, Clock, DollarSign, Sparkles, CheckCircle2, XCircle, Loader2, TrendingUp, Zap, Wallet, MessageSquare, Radio,
+  Star, MapPin, Clock, DollarSign, Sparkles, CheckCircle2, XCircle, Loader2, TrendingUp, Zap, Wallet, MessageSquare, Radio, Bell, BellOff,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isPushSupported, isSubscribed, subscribeToPush, unsubscribeFromPush, sendTestPush } from "@/lib/push";
 
 export default function HandymanDashboard() {
   const { user, loading } = useAuth();
@@ -19,7 +20,37 @@ export default function HandymanDashboard() {
   const [saving, setSaving] = useState(false);
   const [chatJob, setChatJob] = useState(null);
   const [liveConnected, setLiveConnected] = useState(false);
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
   const esRef = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      if (await isPushSupported()) {
+        setPushOn(await isSubscribed());
+      }
+    })();
+  }, []);
+
+  const togglePush = async () => {
+    setPushBusy(true);
+    try {
+      if (pushOn) {
+        await unsubscribeFromPush();
+        setPushOn(false);
+        toast("Push notifications off");
+      } else {
+        await subscribeToPush();
+        setPushOn(true);
+        await sendTestPush();
+        toast.success("Push notifications on · check for test alert");
+      }
+    } catch (e) {
+      toast.error(e.message || "Push setup failed");
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!loading && !user) navigate("/login");
@@ -118,6 +149,15 @@ export default function HandymanDashboard() {
             <p className="text-slate-400 mt-1 text-sm">{profile.role_title}</p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              data-testid="push-toggle-btn"
+              onClick={togglePush}
+              disabled={pushBusy}
+              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono uppercase tracking-widest border transition ${pushOn ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15" : "bg-white/5 border-white/10 text-slate-400 hover:border-amber-500/40"}`}
+            >
+              {pushOn ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+              {pushOn ? "Push on" : "Enable push"}
+            </button>
             <div data-testid="live-indicator" className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono uppercase tracking-widest border ${liveConnected ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-white/5 border-white/10 text-slate-500"}`}>
               <Radio className={`w-3 h-3 ${liveConnected ? "animate-pulse" : ""}`} />
               {liveConnected ? "Live · streaming" : "Offline"}

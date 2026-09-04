@@ -15,6 +15,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 import asyncio
 from collections import defaultdict
+from pywebpush import webpush, WebPushException
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent, TextDelta, StreamDone
 
@@ -221,12 +222,59 @@ def _byline_for(slug: str) -> dict:
 # In-memory pub/sub: handyman_id -> list of asyncio.Queues (one per open SSE connection)
 _lead_subscribers: Dict[str, List[asyncio.Queue]] = defaultdict(list)
 
+# ============ WEB PUSH ============
+VAPID_PUBLIC_KEY  = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_CONTACT     = os.environ.get("VAPID_CONTACT_EMAIL", "mailto:hello@craftpulse.ai")
+
+
+class PushSubscription(BaseModel):
+    endpoint: str
+    keys: Dict[str, str]
+
+
+async def _send_push(subscription: dict, payload: dict) -> bool:
+    if not VAPID_PRIVATE_KEY:
+        return False
+    try:
+        await asyncio.to_thread(
+            webpush,
+            subscription_info=subscription,
+            data=jsonlib.dumps(payload),
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims={"sub": VAPID_CONTACT},
+        )
+        return True
+    except WebPushException as exc:
+        # Prune stale subscription (410 Gone or 404 Not Found)
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        if status in (404, 410):
+            await db.push_subscriptions.delete_one({"endpoint": subscription.get("endpoint")})
+        logging.getLogger(__name__).warning("push failed (%s): %s", status, exc)
+        return False
+
+
 async def _broadcast_lead(handyman_id: str, payload: dict):
+    # 1) SSE fanout
     for q in list(_lead_subscribers.get(handyman_id, [])):
         try:
             q.put_nowait(payload)
         except Exception:
             pass
+    # 2) Web-push fanout to every registered device for this handyman
+    subs = await db.push_subscriptions.find({"user_id": handyman_id}, {"_id": 0}).to_list(20)
+    push_body = {
+        "title": f"New lead · {payload.get('match_score')}% match",
+        "body":  (payload.get("title") or "New job posted")[:80],
+        "icon":  "/icon-192.png",
+        "badge": "/icon-192.png",
+        "tag":   f"lead-{payload.get('job_id')}",
+        "url":   "/handyman",
+        "data":  {"job_id": payload.get("job_id")},
+    }
+    for s in subs:
+        subscription_info = {"endpoint": s["endpoint"], "keys": s["keys"]}
+        await _send_push(subscription_info, push_body)
 
 
 # ============ AUTH HELPERS ============
@@ -702,11 +750,27 @@ async def match_handymen(job_id: str,
         prox = max(0, 8 - int(dist * 0.8))
         # Extra skill-overlap boost if 2+ requested skills match
         extra = 0
+        matched_names = []
         if wanted_skills:
-            overlap = len(skill_set & wanted_skills)
+            matched_names = [s for s in p.get("skills", []) if s.lower() in wanted_skills]
+            overlap = len(matched_names)
             extra = min(10, (overlap - 1) * 6) if overlap >= 2 else 0
+        else:
+            # Auto-derive top matched skill from job category for explanation
+            cat_low = (job.get("category") or "").lower()
+            matched_names = [s for s in p.get("skills", []) if s.lower() == cat_low][:1]
         score = min(99, base + prox + extra)
-        ranked.append({**u, **p, "match_score": score, "distance_miles": dist})
+        ranked.append({
+            **u, **p,
+            "match_score": score,
+            "distance_miles": dist,
+            "matched_skills": matched_names,
+            "score_reasons": {
+                "skill_overlap": bool(matched_names),
+                "proximity_boost": prox,
+                "multi_skill_boost": extra,
+            },
+        })
     ranked.sort(key=lambda x: -x["match_score"])
     return ranked[:8]
 
@@ -720,6 +784,104 @@ async def all_skills():
         for s in (p.get("skills") or []):
             counts[s] = counts.get(s, 0) + 1
     return [{"name": k, "count": v} for k, v in sorted(counts.items(), key=lambda kv: -kv[1])]
+
+
+# ============ WEB PUSH ENDPOINTS ============
+@api.get("/push/vapid-public")
+async def get_vapid_public():
+    return {"public_key": VAPID_PUBLIC_KEY}
+
+
+@api.post("/push/subscribe")
+async def subscribe_push(subscription: PushSubscription,
+                         session_token: Optional[str] = Cookie(None),
+                         authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    doc = {
+        "endpoint": subscription.endpoint,
+        "keys": subscription.keys,
+        "user_id": user["user_id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.push_subscriptions.update_one(
+        {"endpoint": subscription.endpoint},
+        {"$set": doc}, upsert=True,
+    )
+    return {"ok": True}
+
+
+@api.post("/push/unsubscribe")
+async def unsubscribe_push(subscription: PushSubscription):
+    await db.push_subscriptions.delete_one({"endpoint": subscription.endpoint})
+    return {"ok": True}
+
+
+@api.post("/push/test")
+async def push_test(session_token: Optional[str] = Cookie(None),
+                    authorization: Optional[str] = Header(None)):
+    """Send a test push to the current user's registered devices."""
+    user = await get_current_user(session_token, authorization)
+    subs = await db.push_subscriptions.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(20)
+    sent = 0
+    for s in subs:
+        ok = await _send_push(
+            {"endpoint": s["endpoint"], "keys": s["keys"]},
+            {"title": "CraftPulse test push", "body": "You're wired up. New AI matches will land here.",
+             "icon": "/icon-192.png", "url": "/handyman"},
+        )
+        if ok: sent += 1
+    return {"sent": sent, "total": len(subs)}
+
+
+# ============ RELATED BLOG POSTS ============
+# Simple category clusters — used to pick 3 related guides per article
+_BLOG_CLUSTERS = {
+    "structural": ["carpentry", "windows", "doors", "stairs", "roofing"],
+    "finish":     ["painting", "tiling", "carpentry"],
+    "systems":    ["electrical", "plumbing", "hvac", "smart_home"],
+    "install":    ["appliance", "smart_home", "locksmith"],
+    "outside":    ["deck_fence", "roofing", "windows"],
+}
+
+
+@api.get("/blog/related/{slug}")
+async def related_blog(slug: str):
+    """Return up to 3 related guides prioritizing same-cluster, then by shared keyword overlap."""
+    all_cats = await categories()
+    if not any(c["id"] == slug for c in all_cats):
+        raise HTTPException(404, "Unknown category")
+    # Build cluster candidates
+    candidates = []
+    for cluster in _BLOG_CLUSTERS.values():
+        if slug in cluster:
+            for s in cluster:
+                if s != slug and s not in candidates:
+                    candidates.append(s)
+    # Fallback: fill with other categories by keyword overlap
+    my_kw = set((CATEGORY_CONTENT.get(slug, {}).get("keywords") or []))
+    for c in all_cats:
+        if c["id"] == slug or c["id"] in candidates:
+            continue
+        their_kw = set(CATEGORY_CONTENT.get(c["id"], {}).get("keywords") or [])
+        overlap = len(my_kw & their_kw)
+        candidates.append(c["id"])
+        if len(candidates) >= 6:
+            break
+    candidates = candidates[:3]
+    # Fetch each; return stub if not yet generated
+    stored = {a["slug"]: a async for a in db.blog_articles.find({"slug": {"$in": candidates}}, {"_id": 0})}
+    result = []
+    for cslug in candidates:
+        cat_name = next(c["name"] for c in all_cats if c["id"] == cslug)
+        a = stored.get(cslug) or {}
+        result.append({
+            "slug": cslug, "category": cat_name,
+            "title": a.get("title") or BLOG_TITLES.get(cslug),
+            "subtitle": a.get("subtitle") or "",
+            "reading_time_min": a.get("reading_time_min") or 5,
+            "status": a.get("status") or "not_started",
+        })
+    return result
 
 
 # ============ BOOKING CHAT ============
