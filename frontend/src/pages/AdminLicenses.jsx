@@ -1,0 +1,257 @@
+import { useEffect, useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import Navbar from "@/components/Navbar";
+import { http } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import {
+  ShieldCheck, ShieldAlert, ShieldX, Loader2, CheckCircle2, XCircle,
+  Star, MapPin, Clock, FileText, ArrowRight, Filter,
+} from "lucide-react";
+import { toast } from "sonner";
+
+const TABS = [
+  { id: "pending",  label: "Pending",  icon: ShieldAlert, tone: "amber" },
+  { id: "approved", label: "Approved", icon: ShieldCheck, tone: "emerald" },
+  { id: "rejected", label: "Rejected", icon: ShieldX,     tone: "red" },
+];
+
+export default function AdminLicenses() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  const [isAdmin, setIsAdmin] = useState(null);
+  const [tab, setTab] = useState("pending");
+  const [rows, setRows] = useState([]);
+  const [fetching, setFetching] = useState(false);
+  const [preview, setPreview] = useState(null); // license image lightbox
+  const [rejectingId, setRejectingId] = useState(null);
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    if (!loading && !user) navigate("/login");
+  }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (!user) return;
+    http.get("/admin/me")
+      .then(r => setIsAdmin(!!r.data.is_admin))
+      .catch(() => setIsAdmin(false));
+  }, [user]);
+
+  const fetchRows = async () => {
+    setFetching(true);
+    try {
+      const { data } = await http.get(`/admin/pending-craftsmen?status=${tab}`);
+      setRows(data);
+    } catch (e) {
+      toast.error("Could not load queue");
+    } finally { setFetching(false); }
+  };
+
+  useEffect(() => { if (isAdmin) fetchRows(); /* eslint-disable-next-line */ }, [isAdmin, tab]);
+
+  const approve = async (user_id) => {
+    try {
+      await http.post(`/admin/approve/${user_id}`);
+      toast.success("Approved · now visible in matches");
+      setRows(r => r.filter(x => x.user_id !== user_id));
+    } catch { toast.error("Approve failed"); }
+  };
+
+  const reject = async (user_id) => {
+    try {
+      await http.post(`/admin/reject/${user_id}`, { reason });
+      toast("Rejected — craftsman will be notified");
+      setRows(r => r.filter(x => x.user_id !== user_id));
+      setRejectingId(null); setReason("");
+    } catch { toast.error("Reject failed"); }
+  };
+
+  if (loading || isAdmin === null) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-amber-500" /></div>;
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen"><Navbar />
+        <div className="max-w-2xl mx-auto px-5 py-24 text-center">
+          <ShieldX className="w-10 h-10 mx-auto mb-4 text-red-400" />
+          <h1 className="font-heading text-2xl font-bold">Admins only</h1>
+          <p className="text-slate-400 mt-2 text-sm">This page is restricted to CraftPulse editors.</p>
+          <Link to="/" className="mt-6 inline-flex text-amber-400">← Back home</Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen">
+      <Navbar />
+      <div className="max-w-7xl mx-auto px-5 lg:px-8 py-8">
+        <div className="ai-badge mb-2"><ShieldCheck className="w-3.5 h-3.5" /> Admin Console</div>
+        <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight">License Review Queue</h1>
+        <p className="text-slate-400 mt-1 text-sm">Approve craftsmen so they appear in customer matches. Reject with a reason for follow-up.</p>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mt-6 p-1 bg-white/5 rounded-xl border border-white/8 w-fit">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              data-testid={`admin-tab-${t.id}`}
+              onClick={() => setTab(t.id)}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
+                tab === t.id ? "bg-amber-500 text-slate-900" : "text-slate-300 hover:bg-white/5"
+              }`}
+            >
+              <t.icon className="w-4 h-4" /> {t.label}
+              {tab === t.id && rows.length > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-900/40 text-[10px] font-mono">{rows.length}</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* List */}
+        <div className="mt-6 space-y-3">
+          {fetching && <div className="text-slate-400 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>}
+          {!fetching && rows.length === 0 && (
+            <div className="glass rounded-2xl p-8 text-center">
+              <Filter className="w-8 h-8 mx-auto mb-2 text-slate-500" />
+              <p className="text-slate-400 text-sm">No {tab} craftsmen right now.</p>
+            </div>
+          )}
+          {rows.map(c => (
+            <div key={c.user_id} data-testid={`admin-row-${c.user_id}`} className="glass rounded-2xl p-5">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                <div className="lg:col-span-5 flex items-start gap-3">
+                  <img src={c.picture} alt="" className="w-14 h-14 rounded-xl object-cover border border-amber-500/30" />
+                  <div className="min-w-0">
+                    <div className="font-heading font-semibold text-base leading-tight">{c.name}</div>
+                    <div className="text-xs text-amber-400">{c.role_title}</div>
+                    <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1"><MapPin className="w-3 h-3" />{c.service_area || "—"}</div>
+                    <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
+                      <span className="font-mono text-amber-400">${c.hourly_rate}/hr</span>
+                      <span>·</span>
+                      <span>{c.years_experience}y exp</span>
+                      {c.rating && (<><span>·</span><span className="flex items-center gap-1"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{c.rating}</span></>)}
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {(c.skills || []).slice(0, 5).map(s => (
+                        <span key={s} className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate-300">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-4">
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-slate-500 mb-1.5">License</div>
+                  <div className="text-sm text-slate-200 font-medium">{c.license_type || <span className="text-slate-500">not provided</span>}</div>
+                  {c.license_number && (
+                    <div className="text-xs text-slate-400 mt-1">Number: <span className="font-mono text-slate-200">{c.license_number}</span></div>
+                  )}
+                  {c.license_base64 ? (
+                    c.license_base64.startsWith("data:image") ? (
+                      <button
+                        data-testid={`admin-view-license-${c.user_id}`}
+                        onClick={() => setPreview(c.license_base64)}
+                        className="mt-2 inline-flex items-center gap-2 group"
+                      >
+                        <img src={c.license_base64} alt="license" className="w-24 h-16 object-cover rounded-lg border border-white/10 group-hover:border-amber-500/50 transition" />
+                        <span className="text-[11px] text-amber-400 group-hover:underline">view full</span>
+                      </button>
+                    ) : (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+                        <FileText className="w-4 h-4 text-emerald-400" /> PDF uploaded
+                      </div>
+                    )
+                  ) : (
+                    <div className="mt-2 text-xs text-red-400">No license file</div>
+                  )}
+                  <div className="mt-2 text-[10px] font-mono uppercase tracking-widest text-slate-500">
+                    Submitted {c.submitted_at ? new Date(c.submitted_at).toLocaleDateString() : "—"}
+                  </div>
+                  {c.rejection_reason && (
+                    <div className="mt-2 text-[11px] text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg p-2">
+                      {c.rejection_reason}
+                    </div>
+                  )}
+                </div>
+
+                <div className="lg:col-span-3 flex flex-col gap-2">
+                  {tab === "pending" && (
+                    <>
+                      <button
+                        data-testid={`admin-approve-${c.user_id}`}
+                        onClick={() => approve(c.user_id)}
+                        className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 hover:bg-emerald-500/25 text-emerald-400 text-sm font-semibold transition"
+                      >
+                        <CheckCircle2 className="w-4 h-4" /> Approve
+                      </button>
+                      <button
+                        data-testid={`admin-reject-${c.user_id}`}
+                        onClick={() => { setRejectingId(c.user_id); setReason(""); }}
+                        className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400 text-sm font-semibold transition"
+                      >
+                        <XCircle className="w-4 h-4" /> Reject
+                      </button>
+                    </>
+                  )}
+                  {tab === "approved" && (
+                    <>
+                      <div className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-semibold">
+                        <CheckCircle2 className="w-4 h-4" /> Approved
+                      </div>
+                      <div className="text-[10px] font-mono uppercase tracking-widest text-slate-500 text-center">
+                        {c.verified_at ? new Date(c.verified_at).toLocaleDateString() : ""}
+                      </div>
+                    </>
+                  )}
+                  {tab === "rejected" && (
+                    <button
+                      data-testid={`admin-reopen-${c.user_id}`}
+                      onClick={() => approve(c.user_id)}
+                      className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/40 hover:bg-amber-500/25 text-amber-400 text-sm font-semibold transition"
+                    >
+                      Re-approve <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Reject reason modal */}
+      {rejectingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="glass rounded-3xl w-full max-w-md p-6">
+            <h3 className="font-heading text-lg font-bold mb-2">Reject application</h3>
+            <p className="text-xs text-slate-400 mb-4">The craftsman will see this note when they log in.</p>
+            <textarea
+              data-testid="admin-reject-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={4}
+              placeholder="e.g. License number doesn't match NYC DOB records. Please reupload with clearer photo."
+              className="w-full bg-slate-900/60 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500/50"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => { setRejectingId(null); setReason(""); }}
+                className="px-4 py-2 rounded-full text-sm text-slate-300 hover:bg-white/5 transition"
+              >Cancel</button>
+              <button
+                data-testid="admin-reject-confirm"
+                onClick={() => reject(rejectingId)}
+                className="px-5 py-2 rounded-full bg-red-500/90 hover:bg-red-500 text-white text-sm font-semibold transition"
+              >Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* License lightbox */}
+      {preview && (
+        <div onClick={() => setPreview(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-6 cursor-zoom-out">
+          <img src={preview} alt="license full" className="max-w-full max-h-full rounded-2xl border border-white/10" />
+        </div>
+      )}
+    </div>
+  );
+}

@@ -440,9 +440,17 @@ async def logout(response: Response, session_token: Optional[str] = Cookie(None)
 
 
 # ============ HANDYMEN ============
+def _is_publicly_visible(p: dict) -> bool:
+    """A profile is publicly listed if verified OR explicitly approved.
+    Seeded pros have verified=true. Newly onboarded pros start as verified=false / status=pending."""
+    if p.get("verification_status") in ("rejected", "pending"):
+        return bool(p.get("verified"))
+    return True
+
 @api.get("/handymen")
 async def list_handymen(category: Optional[str] = None):
     profiles = await db.handyman_profiles.find({}, {"_id": 0}).to_list(200)
+    profiles = [p for p in profiles if _is_publicly_visible(p)]
     user_ids = [p["user_id"] for p in profiles]
     users = {u["user_id"]: u async for u in db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0})}
     result = []
@@ -472,11 +480,97 @@ async def update_my_profile(payload: HandymanProfileUpdate,
                             authorization: Optional[str] = Header(None)):
     user = await get_current_user(session_token, authorization)
     update = {k: v for k, v in payload.model_dump().items() if v is not None}
+    # When completing onboarding, force pending verification and lock verified=false
+    if payload.onboarded is True:
+        existing = await db.handyman_profiles.find_one({"user_id": user["user_id"]}, {"_id": 0})
+        if not existing or existing.get("verification_status") not in ("approved",):
+            update["verification_status"] = "pending"
+            update["verified"] = False
+            update["submitted_at"] = datetime.now(timezone.utc).isoformat()
     update["updated_at"] = datetime.now(timezone.utc).isoformat()
     await db.handyman_profiles.update_one(
         {"user_id": user["user_id"]}, {"$set": update}, upsert=True
     )
     return await db.handyman_profiles.find_one({"user_id": user["user_id"]}, {"_id": 0})
+
+
+# ============ ADMIN REVIEW QUEUE ============
+class RejectPayload(BaseModel):
+    reason: Optional[str] = ""
+
+
+async def _require_admin(user: dict):
+    admin_emails = [e.strip().lower() for e in
+                    (os.environ.get("ADMIN_EMAILS") or "demo.customer@craftpulse.ai").split(",")]
+    if not (user.get("is_admin") or (user.get("email") or "").lower() in admin_emails):
+        raise HTTPException(403, "Admin only")
+    return user
+
+
+@api.get("/admin/me")
+async def admin_me(session_token: Optional[str] = Cookie(None),
+                   authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    admin_emails = [e.strip().lower() for e in
+                    (os.environ.get("ADMIN_EMAILS") or "demo.customer@craftpulse.ai").split(",")]
+    is_admin = bool(user.get("is_admin")) or (user.get("email") or "").lower() in admin_emails
+    return {"is_admin": is_admin, "email": user.get("email")}
+
+
+@api.get("/admin/pending-craftsmen")
+async def list_pending(status: Optional[str] = "pending",
+                       session_token: Optional[str] = Cookie(None),
+                       authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    await _require_admin(user)
+    q = {"verification_status": status} if status else {}
+    profiles = await db.handyman_profiles.find(q, {"_id": 0}).to_list(200)
+    user_ids = [p["user_id"] for p in profiles]
+    users = {u["user_id"]: u async for u in db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0})}
+    out = []
+    for p in profiles:
+        u = users.get(p["user_id"])
+        if not u:
+            continue
+        out.append({**u, **p})
+    out.sort(key=lambda x: x.get("submitted_at") or x.get("updated_at") or "", reverse=True)
+    return out
+
+
+@api.post("/admin/approve/{user_id}")
+async def approve_craftsman(user_id: str,
+                            session_token: Optional[str] = Cookie(None),
+                            authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    await _require_admin(user)
+    now = datetime.now(timezone.utc).isoformat()
+    r = await db.handyman_profiles.update_one(
+        {"user_id": user_id},
+        {"$set": {"verification_status": "approved", "verified": True,
+                  "verified_at": now, "verified_by": user["email"],
+                  "rejection_reason": None}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Craftsman not found")
+    return await db.handyman_profiles.find_one({"user_id": user_id}, {"_id": 0})
+
+
+@api.post("/admin/reject/{user_id}")
+async def reject_craftsman(user_id: str, payload: RejectPayload,
+                           session_token: Optional[str] = Cookie(None),
+                           authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    await _require_admin(user)
+    now = datetime.now(timezone.utc).isoformat()
+    r = await db.handyman_profiles.update_one(
+        {"user_id": user_id},
+        {"$set": {"verification_status": "rejected", "verified": False,
+                  "rejection_reason": (payload.reason or "")[:400],
+                  "reviewed_at": now, "reviewed_by": user["email"]}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Craftsman not found")
+    return await db.handyman_profiles.find_one({"user_id": user_id}, {"_id": 0})
 
 
 # ============ AI ============
@@ -757,6 +851,7 @@ async def match_handymen(job_id: str,
     if skills:
         wanted_skills = {s.strip().lower() for s in skills.split(",") if s.strip()}
     profiles = await db.handyman_profiles.find({}, {"_id": 0}).to_list(200)
+    profiles = [p for p in profiles if _is_publicly_visible(p)]
     user_ids = [p["user_id"] for p in profiles]
     users = {u["user_id"]: u async for u in db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0})}
     ranked = []
@@ -1542,7 +1637,8 @@ async def category_detail(slug: str):
     # Filter first, then batch-fetch matching users
     filtered = [
         p for p in profiles
-        if any(m in [s.lower() for s in p.get("skills", [])] for m in match_skills)
+        if _is_publicly_visible(p)
+        and any(m in [s.lower() for s in p.get("skills", [])] for m in match_skills)
     ]
     user_ids = [p["user_id"] for p in filtered]
     users = {u["user_id"]: u async for u in db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0})}

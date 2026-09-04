@@ -1,10 +1,18 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { Wrench, LogOut, LayoutDashboard, HardHat, BookOpen } from "lucide-react";
+import { http } from "@/lib/api";
+import { Wrench, LogOut, LayoutDashboard, HardHat, BookOpen, ShieldCheck } from "lucide-react";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) { setIsAdmin(false); return; }
+    http.get("/admin/me").then(r => setIsAdmin(!!r.data.is_admin)).catch(() => setIsAdmin(false));
+  }, [user]);
 
   const onLogout = async () => {
     await logout();
@@ -32,6 +40,15 @@ export default function Navbar() {
           >
             <BookOpen className="w-4 h-4" /> Field Notes
           </Link>
+          {isAdmin && (
+            <Link
+              to="/admin/licenses"
+              data-testid="nav-admin-btn"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium text-emerald-400 hover:bg-emerald-500/10 transition"
+            >
+              <ShieldCheck className="w-4 h-4" /> Admin
+            </Link>
+          )}
           {user ? (
             <>
               <Link

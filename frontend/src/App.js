@@ -14,6 +14,7 @@ import CategoryPage from "@/pages/CategoryPage";
 import BlogIndex from "@/pages/BlogIndex";
 import BlogArticle from "@/pages/BlogArticle";
 import AuthorPage from "@/pages/AuthorPage";
+import AdminLicenses from "@/pages/AdminLicenses";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 
@@ -29,6 +30,7 @@ function AppRouter() {
       <Route path="/blog" element={<BlogIndex />} />
       <Route path="/blog/:slug" element={<BlogArticle />} />
       <Route path="/authors/:editorId" element={<AuthorPage />} />
+      <Route path="/admin/licenses" element={<AdminLicenses />} />
       <Route path="/login" element={<Login />} />
       <Route path="/dashboard" element={<CustomerDashboard />} />
       <Route path="/handyman" element={<HandymanDashboard />} />
