@@ -499,6 +499,10 @@ class RejectPayload(BaseModel):
     reason: Optional[str] = ""
 
 
+class BulkApprovePayload(BaseModel):
+    user_ids: List[str]
+
+
 async def _require_admin(user: dict):
     admin_emails = [e.strip().lower() for e in
                     (os.environ.get("ADMIN_EMAILS") or "demo.customer@craftpulse.ai").split(",")]
@@ -553,6 +557,25 @@ async def approve_craftsman(user_id: str,
     if r.matched_count == 0:
         raise HTTPException(404, "Craftsman not found")
     return await db.handyman_profiles.find_one({"user_id": user_id}, {"_id": 0})
+
+
+@api.post("/admin/approve-bulk")
+async def approve_bulk(payload: BulkApprovePayload,
+                       session_token: Optional[str] = Cookie(None),
+                       authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    await _require_admin(user)
+    if not payload.user_ids:
+        return {"approved": 0, "matched": 0}
+    now = datetime.now(timezone.utc).isoformat()
+    r = await db.handyman_profiles.update_many(
+        {"user_id": {"$in": payload.user_ids}},
+        {"$set": {"verification_status": "approved", "verified": True,
+                  "verified_at": now, "verified_by": user["email"],
+                  "rejection_reason": None}},
+    )
+    return {"approved": r.modified_count, "matched": r.matched_count,
+            "user_ids": payload.user_ids}
 
 
 @api.post("/admin/reject/{user_id}")

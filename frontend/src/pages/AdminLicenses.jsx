@@ -5,7 +5,7 @@ import { http } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
   ShieldCheck, ShieldAlert, ShieldX, Loader2, CheckCircle2, XCircle,
-  Star, MapPin, Clock, FileText, ArrowRight, Filter,
+  Star, MapPin, Clock, FileText, ArrowRight, Filter, CheckSquare, Square,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +25,34 @@ export default function AdminLicenses() {
   const [preview, setPreview] = useState(null); // license image lightbox
   const [rejectingId, setRejectingId] = useState(null);
   const [reason, setReason] = useState("");
+  const [selected, setSelected] = useState(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const toggleSelect = (uid) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(uid) ? next.delete(uid) : next.add(uid);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === rows.length) setSelected(new Set());
+    else setSelected(new Set(rows.map(r => r.user_id)));
+  };
+
+  const approveBulk = async () => {
+    if (selected.size === 0) return;
+    setBulkBusy(true);
+    const ids = Array.from(selected);
+    try {
+      const { data } = await http.post("/admin/approve-bulk", { user_ids: ids });
+      toast.success(`Approved ${data.approved} craftsmen · now live in matches`);
+      setRows(r => r.filter(x => !selected.has(x.user_id)));
+      setSelected(new Set());
+    } catch { toast.error("Bulk approve failed"); }
+    finally { setBulkBusy(false); }
+  };
 
   useEffect(() => {
     if (!loading && !user) navigate("/login");
@@ -47,7 +75,7 @@ export default function AdminLicenses() {
     } finally { setFetching(false); }
   };
 
-  useEffect(() => { if (isAdmin) fetchRows(); /* eslint-disable-next-line */ }, [isAdmin, tab]);
+  useEffect(() => { if (isAdmin) { fetchRows(); setSelected(new Set()); } /* eslint-disable-next-line */ }, [isAdmin, tab]);
 
   const approve = async (user_id) => {
     try {
@@ -106,6 +134,35 @@ export default function AdminLicenses() {
           ))}
         </div>
 
+        {/* Bulk toolbar (only for pending tab) */}
+        {tab === "pending" && rows.length > 0 && (
+          <div data-testid="bulk-toolbar" className="mt-4 flex items-center gap-3 flex-wrap glass rounded-xl px-4 py-3">
+            <button
+              data-testid="bulk-select-all-btn"
+              onClick={toggleSelectAll}
+              className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-slate-300 hover:text-amber-400 transition"
+            >
+              {selected.size === rows.length && rows.length > 0
+                ? <CheckSquare className="w-4 h-4 text-amber-400" />
+                : <Square className="w-4 h-4" />}
+              {selected.size === rows.length && rows.length > 0 ? "Deselect all" : "Select all"}
+            </button>
+            <span className="text-xs font-mono uppercase tracking-widest text-slate-500">
+              {selected.size} of {rows.length} selected
+            </span>
+            <div className="flex-1" />
+            <button
+              data-testid="bulk-approve-btn"
+              onClick={approveBulk}
+              disabled={selected.size === 0 || bulkBusy}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/15 border border-emerald-500/40 hover:bg-emerald-500/25 disabled:opacity-40 disabled:cursor-not-allowed text-emerald-400 text-sm font-semibold transition"
+            >
+              {bulkBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              Approve selected{selected.size > 0 ? ` (${selected.size})` : ""}
+            </button>
+          </div>
+        )}
+
         {/* List */}
         <div className="mt-6 space-y-3">
           {fetching && <div className="text-slate-400 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>}
@@ -116,9 +173,21 @@ export default function AdminLicenses() {
             </div>
           )}
           {rows.map(c => (
-            <div key={c.user_id} data-testid={`admin-row-${c.user_id}`} className="glass rounded-2xl p-5">
+            <div key={c.user_id} data-testid={`admin-row-${c.user_id}`} className={`glass rounded-2xl p-5 transition ${selected.has(c.user_id) ? "border-amber-500/50 bg-amber-500/5" : ""}`}>
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
                 <div className="lg:col-span-5 flex items-start gap-3">
+                  {tab === "pending" && (
+                    <button
+                      data-testid={`admin-select-${c.user_id}`}
+                      onClick={() => toggleSelect(c.user_id)}
+                      className="flex-shrink-0 mt-1"
+                      aria-label="Select craftsman"
+                    >
+                      {selected.has(c.user_id)
+                        ? <CheckSquare className="w-5 h-5 text-amber-400" />
+                        : <Square className="w-5 h-5 text-slate-500 hover:text-amber-400 transition" />}
+                    </button>
+                  )}
                   <img src={c.picture} alt="" className="w-14 h-14 rounded-xl object-cover border border-amber-500/30" />
                   <div className="min-w-0">
                     <div className="font-heading font-semibold text-base leading-tight">{c.name}</div>
