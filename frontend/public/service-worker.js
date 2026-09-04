@@ -97,13 +97,22 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || "/handyman";
-  event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
-      for (const c of wins) {
-        if (c.url.includes(new URL(targetUrl, self.location.origin).pathname)) return c.focus();
-      }
-      return self.clients.openWindow(targetUrl);
-    })
-  );
+  const data = event.notification.data || {};
+  const targetUrl = data.url || "/handyman";
+  // Fire-and-forget analytics ping
+  event.waitUntil((async () => {
+    try {
+      await fetch("/api/analytics/push-open", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_id: data.job_id }),
+      });
+    } catch {}
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of wins) {
+      if (c.url.includes(new URL(targetUrl, self.location.origin).pathname)) return c.focus();
+    }
+    return self.clients.openWindow(targetUrl);
+  })());
 });

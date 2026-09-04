@@ -70,6 +70,11 @@ class HandymanProfileUpdate(BaseModel):
     service_area: Optional[str] = None
     bio: Optional[str] = None
     available: Optional[bool] = None
+    license_base64: Optional[str] = None
+    license_type: Optional[str] = None
+    license_number: Optional[str] = None
+    agreement_accepted: Optional[bool] = None
+    onboarded: Optional[bool] = None
 
 class JobCreate(BaseModel):
     category: str
@@ -261,8 +266,15 @@ async def _broadcast_lead(handyman_id: str, payload: dict):
             q.put_nowait(payload)
         except Exception:
             pass
-    # 2) Web-push fanout to every registered device for this handyman
+    # 2) Web-push fanout to every registered device for this handyman.
+    # Auto-pause: if a subscription has been sent 20+ pushes with <5% open rate, skip.
     subs = await db.push_subscriptions.find({"user_id": handyman_id}, {"_id": 0}).to_list(20)
+    if not subs:
+        return
+    sent_count = await db.push_events.count_documents({"user_id": handyman_id, "kind": "sent"})
+    open_count = await db.push_events.count_documents({"user_id": handyman_id, "kind": "open"})
+    open_rate = (open_count / sent_count) if sent_count else 1.0
+    auto_paused = sent_count >= 20 and open_rate < 0.05
     push_body = {
         "title": f"New lead · {payload.get('match_score')}% match",
         "body":  (payload.get("title") or "New job posted")[:80],
@@ -273,8 +285,20 @@ async def _broadcast_lead(handyman_id: str, payload: dict):
         "data":  {"job_id": payload.get("job_id")},
     }
     for s in subs:
+        if auto_paused:
+            await db.push_events.insert_one({
+                "user_id": handyman_id, "kind": "skipped_low_engagement",
+                "job_id": payload.get("job_id"),
+                "ts": datetime.now(timezone.utc).isoformat(),
+            })
+            continue
         subscription_info = {"endpoint": s["endpoint"], "keys": s["keys"]}
-        await _send_push(subscription_info, push_body)
+        ok = await _send_push(subscription_info, push_body)
+        await db.push_events.insert_one({
+            "user_id": handyman_id, "kind": "sent" if ok else "failed",
+            "job_id": payload.get("job_id"),
+            "ts": datetime.now(timezone.utc).isoformat(),
+        })
 
 
 # ============ AUTH HELPERS ============
@@ -846,7 +870,7 @@ _BLOG_CLUSTERS = {
 
 @api.get("/blog/related/{slug}")
 async def related_blog(slug: str):
-    """Return up to 3 related guides prioritizing same-cluster, then by shared keyword overlap."""
+    """Return up to 5 related guides prioritizing same-cluster, then by shared keyword overlap."""
     all_cats = await categories()
     if not any(c["id"] == slug for c in all_cats):
         raise HTTPException(404, "Unknown category")
@@ -859,19 +883,23 @@ async def related_blog(slug: str):
                     candidates.append(s)
     # Fallback: fill with other categories by keyword overlap
     my_kw = set((CATEGORY_CONTENT.get(slug, {}).get("keywords") or []))
+    others = []
     for c in all_cats:
         if c["id"] == slug or c["id"] in candidates:
             continue
         their_kw = set(CATEGORY_CONTENT.get(c["id"], {}).get("keywords") or [])
-        overlap = len(my_kw & their_kw)
-        candidates.append(c["id"])
-        if len(candidates) >= 6:
+        others.append((len(my_kw & their_kw), c["id"]))
+    others.sort(key=lambda x: -x[0])
+    for _, cid in others:
+        if cid not in candidates:
+            candidates.append(cid)
+        if len(candidates) >= 5:
             break
-    candidates = candidates[:3]
+    candidates = candidates[:5]
     # Fetch each; return stub if not yet generated
     stored = {a["slug"]: a async for a in db.blog_articles.find({"slug": {"$in": candidates}}, {"_id": 0})}
     result = []
-    for cslug in candidates:
+    for i, cslug in enumerate(candidates):
         cat_name = next(c["name"] for c in all_cats if c["id"] == cslug)
         a = stored.get(cslug) or {}
         result.append({
@@ -879,9 +907,94 @@ async def related_blog(slug: str):
             "title": a.get("title") or BLOG_TITLES.get(cslug),
             "subtitle": a.get("subtitle") or "",
             "reading_time_min": a.get("reading_time_min") or 5,
+            "position": i,
             "status": a.get("status") or "not_started",
         })
     return result
+
+
+# ============ ANALYTICS ============
+class RelatedClickEvent(BaseModel):
+    source_slug: str
+    target_slug: str
+    position: int
+    target_type: Optional[str] = "blog"  # "blog" or "service"
+
+
+class PushOpenEvent(BaseModel):
+    job_id: Optional[str] = None
+
+
+@api.post("/analytics/related-click")
+async def track_related_click(ev: RelatedClickEvent):
+    await db.analytics_related.insert_one({
+        "source_slug": ev.source_slug,
+        "target_slug": ev.target_slug,
+        "position": ev.position,
+        "target_type": ev.target_type or "blog",
+        "ts": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"ok": True}
+
+
+@api.get("/analytics/related-report")
+async def related_report():
+    """Aggregate click-through by (source, target, position) — perfect for A/B slot analysis."""
+    pipeline = [
+        {"$group": {
+            "_id": {"src": "$source_slug", "tgt": "$target_slug", "pos": "$position", "type": "$target_type"},
+            "clicks": {"$sum": 1},
+        }},
+        {"$sort": {"clicks": -1}},
+        {"$limit": 200},
+    ]
+    rows = []
+    async for r in db.analytics_related.aggregate(pipeline):
+        rows.append({
+            "source": r["_id"]["src"], "target": r["_id"]["tgt"],
+            "position": r["_id"]["pos"], "type": r["_id"].get("type") or "blog",
+            "clicks": r["clicks"],
+        })
+    # Slot performance
+    slot_totals = {}
+    for r in rows:
+        slot_totals[r["position"]] = slot_totals.get(r["position"], 0) + r["clicks"]
+    return {"rows": rows, "by_position": slot_totals}
+
+
+@api.post("/analytics/push-open")
+async def track_push_open(ev: PushOpenEvent,
+                          session_token: Optional[str] = Cookie(None),
+                          authorization: Optional[str] = Header(None)):
+    try:
+        user = await get_current_user(session_token, authorization)
+        uid = user["user_id"]
+    except HTTPException:
+        uid = None  # allow anonymous opens (e.g. SW clicked before login re-establishes)
+    await db.push_events.insert_one({
+        "user_id": uid, "kind": "open",
+        "job_id": ev.job_id,
+        "ts": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"ok": True}
+
+
+@api.get("/analytics/push-report")
+async def push_report(session_token: Optional[str] = Cookie(None),
+                      authorization: Optional[str] = Header(None)):
+    """Per-user push send/open/skip counts + open rate."""
+    user = await get_current_user(session_token, authorization)
+    uid = user["user_id"]
+    sent = await db.push_events.count_documents({"user_id": uid, "kind": "sent"})
+    opens = await db.push_events.count_documents({"user_id": uid, "kind": "open"})
+    skipped = await db.push_events.count_documents({"user_id": uid, "kind": "skipped_low_engagement"})
+    failed = await db.push_events.count_documents({"user_id": uid, "kind": "failed"})
+    rate = round(opens / sent, 3) if sent else None
+    auto_paused = sent >= 20 and (rate or 0) < 0.05
+    return {
+        "sent": sent, "opens": opens, "failed": failed, "skipped_low_engagement": skipped,
+        "open_rate": rate, "auto_paused": auto_paused,
+    }
 
 
 # ============ BOOKING CHAT ============

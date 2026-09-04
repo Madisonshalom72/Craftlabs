@@ -301,30 +301,36 @@ function RelatedGuides({ slug }) {
   useEffect(() => {
     http.get(`/blog/related/${slug}`).then(r => setRelated(r.data)).catch(() => {});
   }, [slug]);
+  const trackClick = (target_slug, position) => {
+    http.post("/analytics/related-click", {
+      source_slug: slug, target_slug, position, target_type: "blog",
+    }).catch(() => {});
+  };
   if (!related.length) return null;
   return (
     <section data-testid="related-guides" className="mt-14">
       <div className="ai-badge mb-3 inline-flex"><BookOpen className="w-3.5 h-3.5" /> You might also like</div>
       <h2 className="font-heading text-2xl font-bold tracking-tight mb-5">More guides for your home</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {related.map(r => (
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {related.map((r, i) => (
           <Link
             key={r.slug}
             to={`/blog/${r.slug}`}
             data-testid={`related-${r.slug}`}
-            className="glass rounded-2xl p-5 hover:border-amber-500/40 hover:-translate-y-0.5 transition group"
+            onClick={() => trackClick(r.slug, i)}
+            className="glass rounded-2xl p-4 hover:border-amber-500/40 hover:-translate-y-0.5 transition group"
           >
             <div className="flex items-center justify-between mb-2">
               <span className="ai-badge">{r.category}</span>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500 flex items-center gap-1">
-                <Clock className="w-3 h-3" />{r.reading_time_min}min
+              <span className="text-[9px] font-mono uppercase tracking-widest text-slate-500 flex items-center gap-1">
+                <Clock className="w-3 h-3" />{r.reading_time_min}m
               </span>
             </div>
-            <h3 className="font-heading text-base font-semibold leading-tight line-clamp-3 group-hover:text-amber-400 transition min-h-[60px]">
+            <h3 className="font-heading text-sm font-semibold leading-tight line-clamp-4 group-hover:text-amber-400 transition min-h-[72px]">
               {r.title}
             </h3>
-            <div className="mt-3 text-xs font-mono uppercase tracking-widest text-amber-400 flex items-center gap-1 group-hover:gap-2 transition-all">
-              Read <ArrowRight className="w-3 h-3" />
+            <div className="mt-3 text-[10px] font-mono uppercase tracking-widest text-amber-400 flex items-center gap-1 group-hover:gap-2 transition-all">
+              #{i+1} · Read <ArrowRight className="w-3 h-3" />
             </div>
           </Link>
         ))}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import BookingChat from "@/components/BookingChat";
+import CraftsmanOnboarding from "@/components/CraftsmanOnboarding";
 import { API, http } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -22,7 +23,12 @@ export default function HandymanDashboard() {
   const [liveConnected, setLiveConnected] = useState(false);
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const esRef = useRef(null);
+
+  useEffect(() => {
+    if (profile && !profile.onboarded) setShowOnboarding(true);
+  }, [profile]);
 
   useEffect(() => {
     (async () => {
@@ -335,6 +341,17 @@ export default function HandymanDashboard() {
 
       {chatJob && (
         <BookingChat job={chatJob} currentUser={user} onClose={() => setChatJob(null)} />
+      )}
+      {showOnboarding && (
+        <CraftsmanOnboarding
+          profile={profile}
+          onDone={async () => {
+            const { data } = await http.get(`/handymen/${user.user_id}`);
+            setProfile(data);
+            setShowOnboarding(false);
+          }}
+          onSkip={() => setShowOnboarding(false)}
+        />
       )}
     </div>
   );
