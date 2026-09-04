@@ -671,12 +671,19 @@ async def accept_job(job_id: str, session_token: Optional[str] = Cookie(None),
 
 
 @api.post("/jobs/{job_id}/match")
-async def match_handymen(job_id: str, max_distance: Optional[float] = None):
+async def match_handymen(job_id: str,
+                         max_distance: Optional[float] = None,
+                         skills: Optional[str] = None):
     """Return handymen ranked by match score (skill + rating + experience + rate + proximity).
-    Optional query param max_distance filters out craftsmen farther than N miles."""
+    Optional query params:
+      - max_distance: miles cutoff
+      - skills: comma-separated list of skill names to require (ANY-match)."""
     job = await db.jobs.find_one({"job_id": job_id}, {"_id": 0})
     if not job:
         raise HTTPException(404, "Job not found")
+    wanted_skills = None
+    if skills:
+        wanted_skills = {s.strip().lower() for s in skills.split(",") if s.strip()}
     profiles = await db.handyman_profiles.find({}, {"_id": 0}).to_list(200)
     user_ids = [p["user_id"] for p in profiles]
     users = {u["user_id"]: u async for u in db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0})}
@@ -688,13 +695,31 @@ async def match_handymen(job_id: str, max_distance: Optional[float] = None):
         dist = _distance_miles(p["user_id"])
         if max_distance is not None and dist > max_distance:
             continue
+        skill_set = {s.lower() for s in p.get("skills", [])}
+        if wanted_skills and not (skill_set & wanted_skills):
+            continue
         base = _match_score(job, p)
-        # Proximity boost: closer = up to +8 pts (10 miles ≈ 0)
         prox = max(0, 8 - int(dist * 0.8))
-        score = min(99, base + prox)
+        # Extra skill-overlap boost if 2+ requested skills match
+        extra = 0
+        if wanted_skills:
+            overlap = len(skill_set & wanted_skills)
+            extra = min(10, (overlap - 1) * 6) if overlap >= 2 else 0
+        score = min(99, base + prox + extra)
         ranked.append({**u, **p, "match_score": score, "distance_miles": dist})
     ranked.sort(key=lambda x: -x["match_score"])
     return ranked[:8]
+
+
+@api.get("/skills")
+async def all_skills():
+    """Aggregate distinct skills across handyman_profiles for the filter UI."""
+    profiles = await db.handyman_profiles.find({}, {"_id": 0, "skills": 1}).to_list(500)
+    counts = {}
+    for p in profiles:
+        for s in (p.get("skills") or []):
+            counts[s] = counts.get(s, 0) + 1
+    return [{"name": k, "count": v} for k, v in sorted(counts.items(), key=lambda kv: -kv[1])]
 
 
 # ============ BOOKING CHAT ============

@@ -1,0 +1,35 @@
+{
+  "name": "CraftPulse AI · Handyman Marketplace",
+  "short_name": "CraftPulse",
+  "description": "AI-powered NYC handyman marketplace. Snap a photo, get an AI diagnosis, book a vetted craftsman.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0B0D11",
+  "theme_color": "#F59E0B",
+  "categories": ["business", "productivity", "utilities"],
+  "lang": "en-US",
+  "dir": "ltr",
+  "icons": [
+    { "src": "/icon-192.png",           "sizes": "192x192", "type": "image/png", "purpose": "any"      },
+    { "src": "/icon-512.png",           "sizes": "512x512", "type": "image/png", "purpose": "any"      },
+    { "src": "/icon-512-maskable.png",  "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Diagnose a repair",
+      "short_name": "Diagnose",
+      "description": "Snap a photo and get an AI diagnosis",
+      "url": "/login",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Field Notes",
+      "short_name": "Guides",
+      "description": "Expert repair guides",
+      "url": "/blog",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

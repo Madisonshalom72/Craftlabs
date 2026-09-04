@@ -1,7 +1,9 @@
 import "@/App.css";
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/context/AuthContext";
+import InstallPrompt from "@/components/InstallPrompt";
 
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
@@ -37,11 +39,22 @@ function AppRouter() {
 }
 
 function App() {
+  useEffect(() => {
+    if ("serviceWorker" in navigator && window.location.protocol === "https:") {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("/service-worker.js", { scope: "/" })
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  }, []);
+
   return (
     <div className="App">
       <BrowserRouter>
         <AuthProvider>
           <AppRouter />
+          <InstallPrompt />
           <Toaster
             position="top-right"
             theme="dark"

@@ -34,6 +34,12 @@ export default function CustomerDashboard() {
   const [reviewedIds, setReviewedIds] = useState({});
   const [maxDistance, setMaxDistance] = useState(15);
   const [currentJobId, setCurrentJobId] = useState(null);
+  const [availableSkills, setAvailableSkills] = useState([]);
+  const [selectedSkills, setSelectedSkills] = useState([]);
+
+  useEffect(() => {
+    http.get("/skills").then(r => setAvailableSkills(r.data.slice(0, 12))).catch(() => {});
+  }, []);
 
   const refreshBookings = async () => {
     const { data } = await http.get("/jobs?mine=true");
@@ -83,18 +89,27 @@ export default function CustomerDashboard() {
     }
   };
 
-  // Re-fetch matches when the distance slider changes
+  // Re-fetch matches when distance slider OR selected skills change
   useEffect(() => {
     if (!currentJobId) return;
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        const { data } = await http.post(`/jobs/${currentJobId}/match?max_distance=${maxDistance}`);
+        const params = new URLSearchParams();
+        params.set("max_distance", String(maxDistance));
+        if (selectedSkills.length) params.set("skills", selectedSkills.join(","));
+        const { data } = await http.post(`/jobs/${currentJobId}/match?${params.toString()}`);
         if (!cancelled) setMatches(data.map(r => ({ ...r, _job_id: currentJobId })));
       } catch {}
     }, 250);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [maxDistance, currentJobId]);
+  }, [maxDistance, currentJobId, selectedSkills]);
+
+  const toggleSkill = (name) => {
+    setSelectedSkills(prev =>
+      prev.includes(name) ? prev.filter(s => s !== name) : [...prev, name]
+    );
+  };
 
   const book = async (handyman) => {
     setCheckoutFor(handyman.user_id);
@@ -172,6 +187,43 @@ export default function CustomerDashboard() {
                     />
                     <div className="flex justify-between text-[9px] font-mono uppercase tracking-widest text-slate-500 mt-1">
                       <span>1 mi</span><span>25 mi</span>
+                    </div>
+                  </div>
+                )}
+                {diagnosis && availableSkills.length > 0 && (
+                  <div data-testid="skills-filter" className="mb-4 p-3 rounded-2xl bg-slate-900/50 border border-white/8">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
+                        <Sparkles className="w-3 h-3" /> Skills · pick any
+                      </span>
+                      {selectedSkills.length > 0 && (
+                        <button
+                          data-testid="skills-clear-btn"
+                          onClick={() => setSelectedSkills([])}
+                          className="font-mono text-[10px] uppercase tracking-widest text-slate-400 hover:text-amber-400 transition"
+                        >
+                          clear ({selectedSkills.length})
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {availableSkills.map(s => {
+                        const active = selectedSkills.includes(s.name);
+                        return (
+                          <button
+                            key={s.name}
+                            data-testid={`skill-chip-${s.name.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}`}
+                            onClick={() => toggleSkill(s.name)}
+                            className={`text-[11px] px-2.5 py-1 rounded-full border transition font-medium ${
+                              active
+                                ? "bg-amber-500 text-slate-900 border-amber-500"
+                                : "bg-white/5 text-slate-300 border-white/10 hover:border-amber-500/40"
+                            }`}
+                          >
+                            {s.name}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
