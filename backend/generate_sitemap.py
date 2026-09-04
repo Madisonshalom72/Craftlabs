@@ -58,6 +58,8 @@ for slug in CATEGORY_SLUGS:
     urls.append(url(f"{SITE_URL}/services/{slug}", priority="0.9", changefreq="weekly"))
 for slug in CATEGORY_SLUGS:
     urls.append(url(f"{SITE_URL}/blog/{slug}",     priority="0.7", changefreq="monthly"))
+for editor_id in ["marisol-vega","jimmy-obrien","priya-shah","devon-marsh","alicia-cortez","ken-nakamura"]:
+    urls.append(url(f"{SITE_URL}/authors/{editor_id}", priority="0.6", changefreq="monthly"))
 
 xml = (
     '<?xml version="1.0" encoding="UTF-8"?>\n'

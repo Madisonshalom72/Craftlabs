@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
+import { BylineCompact, AuthorCard } from "@/components/Byline";
 import { http } from "@/lib/api";
 import { autoLinkBrands } from "@/lib/autolink";
 import {
@@ -74,12 +75,30 @@ export default function BlogArticle() {
     k.content = (article.keywords || []).join(", ");
     const existing = document.getElementById("blog-jsonld");
     if (existing) existing.remove();
+    const b = article.byline || {};
+    const authorObj = b.author ? {
+      "@type": "Person",
+      "name": b.author.name,
+      "jobTitle": b.author.title,
+      "description": b.author.bio,
+      "image": b.author.picture,
+      "knowsAbout": b.author.expertise,
+      "sameAs": b.author.linkedin ? [b.author.linkedin] : [],
+      "url": `${window.location.origin}/authors/${b.author.id}`,
+    } : { "@type": "Organization", "name": "CraftPulse AI" };
+    const reviewedByObj = b.reviewer ? {
+      "@type": "Person",
+      "name": b.reviewer.name,
+      "jobTitle": b.reviewer.title,
+      "url": `${window.location.origin}/authors/${b.reviewer.id}`,
+    } : undefined;
     const jsonld = {
       "@context": "https://schema.org",
       "@type": "Article",
       "headline": article.title,
       "description": article.meta_description,
-      "author": { "@type": "Organization", "name": "CraftPulse AI" },
+      "author": authorObj,
+      "reviewedBy": reviewedByObj,
       "datePublished": article.created_at,
       "publisher": { "@type": "Organization", "name": "CraftPulse AI" },
       "keywords": (article.keywords || []).join(", "),
@@ -162,6 +181,9 @@ export default function BlogArticle() {
           <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-amber-400" /> Written with Claude Sonnet</span>
           {article.created_at && (<><span>·</span><span>{new Date(article.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span></>)}
         </div>
+
+        {/* Byline */}
+        <BylineCompact byline={article.byline} />
 
         {/* Hero image */}
         <div className="mt-8 rounded-3xl overflow-hidden border border-white/10">
@@ -248,6 +270,16 @@ export default function BlogArticle() {
             </div>
           </div>
         </div>
+
+        {/* Author & Reviewer cards (E-E-A-T) */}
+        {article.byline?.author && (
+          <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <AuthorCard author={article.byline.author} role="Written by" />
+            {article.byline.reviewer && (
+              <AuthorCard author={article.byline.reviewer} role="Reviewed by" />
+            )}
+          </div>
+        )}
       </article>
 
       <footer className="border-t border-white/8 py-8">

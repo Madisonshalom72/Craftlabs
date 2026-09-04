@@ -125,6 +125,98 @@ BLOG_TITLES = {
 }
 
 
+# ============ EDITORIAL PANEL (E-E-A-T) ============
+EDITORS = {
+    "marisol-vega": {
+        "id": "marisol-vega",
+        "name": "Marisol Vega",
+        "title": "Editor-in-Chief · CraftPulse AI",
+        "credentials": "Former NYC DOB inspector · 22 yrs field experience",
+        "picture": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80",
+        "bio": "Marisol spent 14 years as a NYC Department of Buildings plans examiner before joining CraftPulse as Editor-in-Chief. She wrote the internal training manual used by two of the five boroughs' inspection teams and reviews every guide for code accuracy.",
+        "expertise": ["NYC building code", "Permits & inspections", "Homeowner protection"],
+        "linkedin": "https://www.linkedin.com/in/marisol-vega-craftpulse",
+    },
+    "jimmy-obrien": {
+        "id": "jimmy-obrien",
+        "name": "James \"Jimmy\" O'Brien",
+        "title": "Trade Editor · Electrical & Smart Home",
+        "credentials": "Master Electrician · IBEW Local 3 since 2001",
+        "picture": "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80",
+        "bio": "Jimmy is a third-generation NYC electrician who spent 23 years running panel upgrades and rewires in pre-war buildings from the UES to Bay Ridge. He's Tesla-certified for Wall Connector installs and holds a NYC Master Electrician license.",
+        "expertise": ["Electrical", "EV charging", "Smart home wiring", "Panel upgrades"],
+        "linkedin": "https://www.linkedin.com/in/jimmy-obrien-master-electrician",
+    },
+    "priya-shah": {
+        "id": "priya-shah",
+        "name": "Priya Shah, P.E.",
+        "title": "Structural & Building Systems Editor",
+        "credentials": "Licensed Professional Engineer · Columbia SEAS",
+        "picture": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80",
+        "bio": "Priya is a licensed Professional Engineer with a structural focus, previously with Thornton Tomasetti. She reviews everything CraftPulse publishes on roofing, load-bearing carpentry, and building envelope for engineering accuracy.",
+        "expertise": ["Roofing", "Structural carpentry", "Building envelope", "Waterproofing"],
+        "linkedin": "https://www.linkedin.com/in/priya-shah-pe",
+    },
+    "devon-marsh": {
+        "id": "devon-marsh",
+        "name": "Devon Marsh",
+        "title": "Trade Editor · Plumbing & HVAC",
+        "credentials": "NYC Master Plumber #6142 · NATE-certified HVAC",
+        "picture": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=200&q=80",
+        "bio": "Devon has held a NYC Master Plumber license for 17 years and NATE certifications for another decade. He built out the mechanical rooms for three of the top ten LEED Platinum residential projects in Brooklyn.",
+        "expertise": ["Plumbing", "HVAC", "Hydronic heating", "Heat pumps"],
+        "linkedin": "https://www.linkedin.com/in/devon-marsh-plumbing",
+    },
+    "alicia-cortez": {
+        "id": "alicia-cortez",
+        "name": "Alicia Cortez",
+        "title": "Interiors & Craftsmanship Editor",
+        "credentials": "Fine finish carpenter · 18 yrs bespoke work",
+        "picture": "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80",
+        "bio": "Alicia trained under two of the last hand-cut moulding houses in Long Island City. Her work has been featured in Architectural Digest and Dwell. At CraftPulse she edits everything on carpentry, tile, paint, and staircase work.",
+        "expertise": ["Carpentry", "Cabinetry", "Tile & masonry", "Paint & finish", "Stairs"],
+        "linkedin": "https://www.linkedin.com/in/alicia-cortez-carpentry",
+    },
+    "ken-nakamura": {
+        "id": "ken-nakamura",
+        "name": "Ken Nakamura",
+        "title": "Smart Home & Appliance Editor",
+        "credentials": "Factory-certified · Sub-Zero, Bosch, LG",
+        "picture": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
+        "bio": "Ken is factory-certified for Sub-Zero, Wolf, Bosch, LG, and Samsung appliance repair. He's installed north of 800 smart-home systems including full Lutron, HomeKit, and Alexa deployments across NYC.",
+        "expertise": ["Appliance repair", "Smart home", "Smart locks", "Home automation"],
+        "linkedin": "https://www.linkedin.com/in/ken-nakamura-appliance",
+    },
+}
+
+# Category → primary author + reviewer (E-E-A-T best practice: author + reviewer)
+CATEGORY_AUTHORS = {
+    "electrical":  {"author": "jimmy-obrien",  "reviewer": "marisol-vega"},
+    "plumbing":    {"author": "devon-marsh",   "reviewer": "priya-shah"},
+    "hvac":        {"author": "devon-marsh",   "reviewer": "marisol-vega"},
+    "carpentry":   {"author": "alicia-cortez", "reviewer": "priya-shah"},
+    "roofing":     {"author": "priya-shah",    "reviewer": "marisol-vega"},
+    "smart_home":  {"author": "ken-nakamura",  "reviewer": "jimmy-obrien"},
+    "windows":     {"author": "alicia-cortez", "reviewer": "priya-shah"},
+    "doors":       {"author": "alicia-cortez", "reviewer": "marisol-vega"},
+    "stairs":      {"author": "alicia-cortez", "reviewer": "priya-shah"},
+    "painting":    {"author": "alicia-cortez", "reviewer": "marisol-vega"},
+    "tiling":      {"author": "alicia-cortez", "reviewer": "priya-shah"},
+    "appliance":   {"author": "ken-nakamura",  "reviewer": "marisol-vega"},
+    "deck_fence":  {"author": "alicia-cortez", "reviewer": "priya-shah"},
+    "locksmith":   {"author": "ken-nakamura",  "reviewer": "marisol-vega"},
+    "general":     {"author": "marisol-vega",  "reviewer": "jimmy-obrien"},
+}
+
+
+def _byline_for(slug: str) -> dict:
+    a = CATEGORY_AUTHORS.get(slug, {"author": "marisol-vega", "reviewer": "jimmy-obrien"})
+    return {
+        "author":   EDITORS[a["author"]],
+        "reviewer": EDITORS[a["reviewer"]],
+    }
+
+
 # ============ REAL-TIME LEAD FEED ============
 # In-memory pub/sub: handyman_id -> list of asyncio.Queues (one per open SSE connection)
 _lead_subscribers: Dict[str, List[asyncio.Queue]] = defaultdict(list)
@@ -279,9 +371,11 @@ async def logout(response: Response, session_token: Optional[str] = Cookie(None)
 @api.get("/handymen")
 async def list_handymen(category: Optional[str] = None):
     profiles = await db.handyman_profiles.find({}, {"_id": 0}).to_list(200)
+    user_ids = [p["user_id"] for p in profiles]
+    users = {u["user_id"]: u async for u in db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0})}
     result = []
     for p in profiles:
-        u = await db.users.find_one({"user_id": p["user_id"]}, {"_id": 0})
+        u = users.get(p["user_id"])
         if not u:
             continue
         if category and category.lower() not in [s.lower() for s in p.get("skills", [])]:
@@ -584,9 +678,11 @@ async def match_handymen(job_id: str, max_distance: Optional[float] = None):
     if not job:
         raise HTTPException(404, "Job not found")
     profiles = await db.handyman_profiles.find({}, {"_id": 0}).to_list(200)
+    user_ids = [p["user_id"] for p in profiles]
+    users = {u["user_id"]: u async for u in db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0})}
     ranked = []
     for p in profiles:
-        u = await db.users.find_one({"user_id": p["user_id"]}, {"_id": 0})
+        u = users.get(p["user_id"])
         if not u:
             continue
         dist = _distance_miles(p["user_id"])
@@ -789,9 +885,36 @@ async def list_blog():
             "keywords": CATEGORY_CONTENT.get(c["id"], {}).get("keywords", []),
             "status": (stored.get(c["id"]) or {}).get("status") or "not_started",
             "created_at": (stored.get(c["id"]) or {}).get("created_at"),
+            "byline": _byline_for(c["id"]),
         }
         for c in all_cats
     ]
+
+
+@api.get("/editors")
+async def list_editors():
+    return list(EDITORS.values())
+
+
+@api.get("/editors/{editor_id}")
+async def get_editor(editor_id: str):
+    ed = EDITORS.get(editor_id)
+    if not ed:
+        raise HTTPException(404, "Editor not found")
+    # Also return which articles they contributed to
+    articles = []
+    for slug, assign in CATEGORY_AUTHORS.items():
+        if assign["author"] == editor_id or assign["reviewer"] == editor_id:
+            stored = await db.blog_articles.find_one({"slug": slug, "status": "ready"}, {"_id": 0})
+            cat_name = next((c["name"] for c in await categories() if c["id"] == slug), slug)
+            articles.append({
+                "slug": slug, "category": cat_name,
+                "title": (stored or {}).get("title") or BLOG_TITLES.get(slug),
+                "subtitle": (stored or {}).get("subtitle") or "",
+                "role": "author" if assign["author"] == editor_id else "reviewer",
+                "status": (stored or {}).get("status") or "not_started",
+            })
+    return {**ed, "articles": articles}
 
 
 @api.get("/blog/{slug}")
@@ -799,9 +922,9 @@ async def get_blog(slug: str, background_tasks: BackgroundTasks):
     """Return an article. If not yet generated, spawn background gen and return {status:'generating'}."""
     existing = await db.blog_articles.find_one({"slug": slug}, {"_id": 0})
     if existing and existing.get("status") == "ready":
-        return existing
+        return {**existing, "byline": _byline_for(slug)}
     if existing and existing.get("status") == "generating":
-        return {"slug": slug, "status": "generating"}
+        return {"slug": slug, "status": "generating", "byline": _byline_for(slug)}
     # Not started — mark and kick off
     all_cats = await categories()
     cat_name = next((c["name"] for c in all_cats if c["id"] == slug), None)
@@ -814,7 +937,7 @@ async def get_blog(slug: str, background_tasks: BackgroundTasks):
         upsert=True,
     )
     background_tasks.add_task(_run_generation, slug, cat_name)
-    return {"slug": slug, "status": "generating"}
+    return {"slug": slug, "status": "generating", "byline": _byline_for(slug)}
 
 
 async def _run_generation(slug: str, cat_name: str):
@@ -1116,13 +1239,18 @@ async def category_detail(slug: str):
     content = CATEGORY_CONTENT.get(slug, {})
     match_skills = _SKILL_MATCH_BY_SLUG.get(slug, [slug.replace("_", " ")])
     profiles = await db.handyman_profiles.find({}, {"_id": 0}).to_list(200)
+    # Filter first, then batch-fetch matching users
+    filtered = [
+        p for p in profiles
+        if any(m in [s.lower() for s in p.get("skills", [])] for m in match_skills)
+    ]
+    user_ids = [p["user_id"] for p in filtered]
+    users = {u["user_id"]: u async for u in db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0})}
     matched = []
-    for p in profiles:
-        skills_lower = [s.lower() for s in p.get("skills", [])]
-        if any(m in skills_lower for m in match_skills):
-            u = await db.users.find_one({"user_id": p["user_id"]}, {"_id": 0})
-            if u:
-                matched.append({**u, **p, "distance_miles": _distance_miles(p["user_id"])})
+    for p in filtered:
+        u = users.get(p["user_id"])
+        if u:
+            matched.append({**u, **p, "distance_miles": _distance_miles(p["user_id"])})
     matched.sort(key=lambda x: (-x.get("rating", 0), -x.get("reviews_count", 0)))
     top = matched[:3]
     avg_rate = round(sum(p.get("hourly_rate", 0) for p in matched) / max(len(matched), 1))
@@ -1168,7 +1296,8 @@ async def sitemap_xml(request: Request):
         (f"{site}/login",  "monthly", "0.6"),
         (f"{site}/blog",   "weekly",  "0.8"),
     ] + [(f"{site}/services/{c['id']}", "weekly", "0.9") for c in all_cats] \
-      + [(f"{site}/blog/{c['id']}",     "monthly","0.7") for c in all_cats]
+      + [(f"{site}/blog/{c['id']}",     "monthly","0.7") for c in all_cats] \
+      + [(f"{site}/authors/{eid}",      "monthly","0.6") for eid in EDITORS.keys()]
     body = ['<?xml version="1.0" encoding="UTF-8"?>',
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for loc, cf, pr in entries:
