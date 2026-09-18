@@ -38,7 +38,7 @@ export default function CustomerDashboard() {
   const [selectedSkills, setSelectedSkills] = useState([]);
 
   useEffect(() => {
-    http.get("/skills").then(r => setAvailableSkills(r.data.slice(0, 12))).catch(() => {});
+    http.get("/skills").then(r => setAvailableSkills(r.data.slice(0, 12))).catch(e => console.error("skills fetch failed", e));
   }, []);
 
   const refreshBookings = async () => {
@@ -50,7 +50,7 @@ export default function CustomerDashboard() {
       try {
         const { data: r } = await http.get(`/jobs/${j.job_id}/review`);
         if (r) reviews[j.job_id] = r;
-      } catch {}
+      } catch (e) { console.error(`review fetch failed for ${j.job_id}`, e); }
     }));
     setReviewedIds(reviews);
   };
@@ -100,7 +100,7 @@ export default function CustomerDashboard() {
         if (selectedSkills.length) params.set("skills", selectedSkills.join(","));
         const { data } = await http.post(`/jobs/${currentJobId}/match?${params.toString()}`);
         if (!cancelled) setMatches(data.map(r => ({ ...r, _job_id: currentJobId })));
-      } catch {}
+      } catch (e) { console.error("match refresh failed", e); }
     }, 250);
     return () => { cancelled = true; clearTimeout(t); };
   }, [maxDistance, currentJobId, selectedSkills]);

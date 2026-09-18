@@ -100,7 +100,7 @@ export default function HandymanDashboard() {
             description: data.title,
           });
         }
-      } catch {}
+      } catch (e) { console.error("SSE message parse failed", e); }
     };
     return () => { es.close(); esRef.current = null; };
   }, [user]);

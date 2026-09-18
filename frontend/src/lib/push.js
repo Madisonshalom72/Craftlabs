@@ -58,7 +58,7 @@ export async function unsubscribeFromPush() {
   const reg = await getRegistration();
   const sub = await reg.pushManager.getSubscription();
   if (!sub) return;
-  try { await http.post("/push/unsubscribe", sub.toJSON()); } catch {}
+  try { await http.post("/push/unsubscribe", sub.toJSON()); } catch (e) { console.error("push unsubscribe API failed", e); }
   await sub.unsubscribe();
 }
 

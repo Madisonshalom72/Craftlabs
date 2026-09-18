@@ -15,7 +15,7 @@ export default function BookingChat({ job, currentUser, onClose }) {
     try {
       const { data } = await http.get(`/jobs/${job.job_id}/messages`);
       setMessages(data);
-    } catch (e) { /* silent poll fail */ }
+    } catch (e) { console.error("chat poll failed", e); }
     finally { setLoading(false); }
   };
 

@@ -13,29 +13,22 @@ SITE_URL = os.environ.get("SITE_URL") or "https://fixit-ai-6.preview.emergentage
 SITE_URL = SITE_URL.rstrip("/")
 
 # Import CATEGORY_CONTENT keys from the server module directly for a single source of truth
-import importlib.util
-spec = importlib.util.spec_from_file_location("_srv", Path(__file__).parent / "server.py")
-# Load only the needed constants without booting the app
+import ast
+
+# Safely extract CATEGORY_CONTENT keys from server.py without exec()
 with open(Path(__file__).parent / "server.py") as f:
-    src = f.read()
-ns = {}
-# Extract just the CATEGORY_CONTENT dict via a safe exec pattern
-start = src.index("CATEGORY_CONTENT = {")
-# Find the matching closing brace at the top level
-depth = 0
-i = src.index("{", start)
-end = i
-while i < len(src):
-    ch = src[i]
-    if ch == "{": depth += 1
-    elif ch == "}":
-        depth -= 1
-        if depth == 0:
-            end = i + 1
-            break
-    i += 1
-exec(src[start:end], ns)
-CATEGORY_SLUGS = list(ns["CATEGORY_CONTENT"].keys())
+    tree = ast.parse(f.read())
+CATEGORY_SLUGS = []
+for node in ast.walk(tree):
+    if isinstance(node, ast.Assign):
+        for tgt in node.targets:
+            if isinstance(tgt, ast.Name) and tgt.id == "CATEGORY_CONTENT" and isinstance(node.value, ast.Dict):
+                CATEGORY_SLUGS = [k.value for k in node.value.keys if isinstance(k, ast.Constant)]
+                break
+    if CATEGORY_SLUGS:
+        break
+if not CATEGORY_SLUGS:
+    raise RuntimeError("Could not locate CATEGORY_CONTENT dict in server.py")
 
 TODAY = datetime.now(timezone.utc).date().isoformat()
 

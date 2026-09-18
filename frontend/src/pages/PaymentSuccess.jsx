@@ -22,7 +22,7 @@ export default function PaymentSuccess() {
             setTimeout(() => setAttempts(a => a + 1), 1500);
           }
         }
-      } catch { /* keep trying */ }
+      } catch (e) { console.error("payment status poll failed", e); /* keep trying */ }
     };
     poll();
     return () => { cancelled = true; };

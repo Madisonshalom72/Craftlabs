@@ -481,7 +481,7 @@ async def update_my_profile(payload: HandymanProfileUpdate,
     user = await get_current_user(session_token, authorization)
     update = {k: v for k, v in payload.model_dump().items() if v is not None}
     # When completing onboarding, force pending verification and lock verified=false
-    if payload.onboarded is True:
+    if payload.onboarded:
         existing = await db.handyman_profiles.find_one({"user_id": user["user_id"]}, {"_id": 0})
         if not existing or existing.get("verification_status") not in ("approved",):
             update["verification_status"] = "pending"
