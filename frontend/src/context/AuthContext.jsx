@@ -11,6 +11,14 @@ export const AuthProvider = ({ children }) => {
     try {
       const { data } = await http.get("/auth/me");
       setUser(data);
+      // Attach any pending referral code captured from /r/:code
+      try {
+        const code = localStorage.getItem("cp_ref_code");
+        if (code && !data.referred_by) {
+          await http.post("/referrals/attach", { code });
+          localStorage.removeItem("cp_ref_code");
+        }
+      } catch { /* ignore */ }
     } catch {
       setUser(null);
     } finally {

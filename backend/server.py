@@ -226,6 +226,7 @@ def _byline_for(slug: str) -> dict:
 # ============ REAL-TIME LEAD FEED ============
 # In-memory pub/sub: handyman_id -> list of asyncio.Queues (one per open SSE connection)
 _lead_subscribers: Dict[str, List[asyncio.Queue]] = defaultdict(list)
+_map_subscribers: List[asyncio.Queue] = []
 
 # ============ WEB PUSH ============
 VAPID_PUBLIC_KEY  = os.environ.get("VAPID_PUBLIC_KEY", "")
@@ -778,8 +779,27 @@ async def create_job(payload: JobCreate,
             score = _match_score(doc, p)
             if score >= 60:
                 await _broadcast_lead(p["user_id"], {**doc, "match_score": score})
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Lead broadcast failed: %s", exc)
+    # Broadcast fuzzed pulse to the public map SSE stream
+    try:
+        coords = _geocode_service_area(doc.get("location", ""))
+        if coords:
+            lat, lng = _fuzz_coords(coords[0], coords[1], job_id)
+            pulse = {
+                "job_id": job_id,
+                "category": doc.get("category"),
+                "created_at": doc.get("created_at"),
+                "lat": round(lat, 5),
+                "lng": round(lng, 5),
+            }
+            for q in list(_map_subscribers):
+                try:
+                    q.put_nowait(pulse)
+                except asyncio.QueueFull:
+                    pass
+    except Exception as exc:
+        logger.warning("Map broadcast failed: %s", exc)
     return doc
 
 
@@ -848,6 +868,12 @@ async def get_job(job_id: str):
 async def accept_job(job_id: str, session_token: Optional[str] = Cookie(None),
                      authorization: Optional[str] = Header(None)):
     user = await get_current_user(session_token, authorization)
+    # Gate: only Pro handymen can accept leads
+    if user.get("role") == "handyman" and not await _has_active_pro(user["user_id"]):
+        raise HTTPException(
+            status_code=402,
+            detail="Handyman Pro membership required to accept leads. Start your $1 trial.",
+        )
     j = await db.jobs.find_one({"job_id": job_id}, {"_id": 0})
     if not j:
         raise HTTPException(404, "Job not found")
@@ -1475,6 +1501,43 @@ async def stripe_webhook(request: Request):
                 {"$set": {"status": "paid",
                           "assigned_handyman_id": md.get("handyman_id") or None}},
             )
+            # First paid job → referral reward for that customer
+            job = await db.jobs.find_one({"job_id": md["job_id"]}, {"_id": 0})
+            if job and job.get("customer_id"):
+                await _award_referral_credit(job["customer_id"], trigger="first_paid_job")
+        # Subscription checkout: fetch and sync
+        if obj.get("mode") == "subscription" and obj.get("subscription"):
+            try:
+                sub = stripe.Subscription.retrieve(obj["subscription"])
+                user_id = md.get("user_id") or (sub.get("metadata") or {}).get("user_id")
+                if user_id:
+                    await _sync_subscription(user_id, sub)
+                    # Trial-started → referral reward for the handyman
+                    await _award_referral_credit(user_id, trigger="handyman_pro_trial")
+            except stripe.error.StripeError as exc:
+                logger.warning("Sub sync on checkout.completed failed: %s", exc)
+    elif t in ("customer.subscription.created",
+               "customer.subscription.updated",
+               "customer.subscription.deleted",
+               "customer.subscription.trial_will_end"):
+        user_id = (obj.get("metadata") or {}).get("user_id")
+        if not user_id:
+            # Look up by customer_id
+            existing = await db.subscriptions.find_one(
+                {"stripe_customer_id": obj.get("customer")}, {"_id": 0}
+            )
+            user_id = existing and existing.get("user_id")
+        if user_id:
+            await _sync_subscription(user_id, obj)
+    elif t == "invoice.payment_failed":
+        cust = obj.get("customer")
+        existing = await db.subscriptions.find_one({"stripe_customer_id": cust}, {"_id": 0})
+        if existing:
+            await db.subscriptions.update_one(
+                {"user_id": existing["user_id"]},
+                {"$set": {"status": "past_due",
+                          "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
     return {"status": "ok"}
 
 
@@ -1697,6 +1760,413 @@ async def tiers():
 @api.get("/")
 async def root():
     return {"service": "CraftPulse AI API", "status": "ok"}
+
+
+# ============================================================================
+# HANDYMAN PRO SUBSCRIPTIONS ($1 trial → $49/mo)
+# ============================================================================
+
+class SubCheckoutRequest(BaseModel):
+    origin_url: str
+
+TRIAL_DAYS = 7
+TRIAL_AMOUNT_CENTS = 100  # $1 flat trial fee (via add_invoice_items)
+ACTIVE_SUB_STATUSES = {"trialing", "active"}
+
+
+async def _sync_subscription(user_id: str, sub) -> dict:
+    """Persist Stripe subscription state to Mongo. Returns the stored doc."""
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "user_id": user_id,
+        "stripe_subscription_id": sub["id"],
+        "stripe_customer_id": sub.get("customer"),
+        "status": sub.get("status"),
+        "current_period_end": sub.get("current_period_end"),
+        "trial_end": sub.get("trial_end"),
+        "cancel_at_period_end": sub.get("cancel_at_period_end", False),
+        "price_lookup_key": "handyman_pro_monthly",
+        "updated_at": now,
+    }
+    await db.subscriptions.update_one(
+        {"user_id": user_id},
+        {"$set": doc, "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+    return doc
+
+
+async def _get_subscription(user_id: str) -> Optional[dict]:
+    return await db.subscriptions.find_one({"user_id": user_id}, {"_id": 0})
+
+
+async def _has_active_pro(user_id: str) -> bool:
+    s = await _get_subscription(user_id)
+    if not s:
+        return False
+    return s.get("status") in ACTIVE_SUB_STATUSES
+
+
+@api.get("/subscriptions/me")
+async def my_subscription(session_token: Optional[str] = Cookie(None),
+                          authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    sub = await _get_subscription(user["user_id"])
+    return {
+        "plan": "handyman_pro_monthly",
+        "trial_days": TRIAL_DAYS,
+        "trial_amount": TRIAL_AMOUNT_CENTS,
+        "monthly_amount": 4900,
+        "currency": "usd",
+        "subscription": sub,
+        "is_active": bool(sub and sub.get("status") in ACTIVE_SUB_STATUSES),
+    }
+
+
+@api.post("/subscriptions/checkout")
+async def sub_checkout(req: SubCheckoutRequest,
+                       session_token: Optional[str] = Cookie(None),
+                       authorization: Optional[str] = Header(None)):
+    """Start a $1 trial → $49/mo subscription checkout.
+
+    Stripe pattern: paid trial via `trial_period_days` + `add_invoice_items` (one-off
+    $1 line item added to the first invoice). After trial, the monthly price recurs.
+    """
+    user = await get_current_user(session_token, authorization)
+    if user.get("role") != "handyman":
+        raise HTTPException(403, "Only handymen can subscribe to Pro")
+    prices = stripe.Price.list(lookup_keys=["handyman_pro_monthly"], active=True, limit=1).data
+    if not prices:
+        raise HTTPException(500, "Subscription price not configured. Run setup_stripe.py.")
+    price = prices[0]
+
+    # Get or create Stripe customer for this user
+    existing_sub = await _get_subscription(user["user_id"])
+    if existing_sub and existing_sub.get("stripe_customer_id"):
+        customer_id = existing_sub["stripe_customer_id"]
+    else:
+        customer = stripe.Customer.create(
+            email=user["email"], name=user.get("name"),
+            metadata={"user_id": user["user_id"]},
+        )
+        customer_id = customer.id
+
+    # Create one-off $1 trial fee product/price (idempotent lookup)
+    trial_prices = stripe.Price.list(lookup_keys=["handyman_pro_trial_fee"], active=True, limit=1).data
+    if trial_prices:
+        trial_price = trial_prices[0]
+    else:
+        trial_product = stripe.Product.create(
+            name="Handyman Pro — 7-day trial",
+            metadata={"managed_by": "emergent", "emergent_product_id": "handyman_pro_trial"},
+        )
+        trial_price = stripe.Price.create(
+            product=trial_product.id, unit_amount=TRIAL_AMOUNT_CENTS,
+            currency="usd", lookup_key="handyman_pro_trial_fee", transfer_lookup_key=True,
+        )
+
+    session = stripe.checkout.Session.create(
+        customer=customer_id,
+        mode="subscription",
+        line_items=[{"price": price.id, "quantity": 1}],
+        subscription_data={
+            "trial_period_days": TRIAL_DAYS,
+            "metadata": {"user_id": user["user_id"], "plan": "handyman_pro_monthly"},
+        },
+        # The $1 trial fee: added to the first invoice as a one-off item
+        payment_method_collection="always",
+        success_url=f"{req.origin_url}/pro/success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{req.origin_url}/pro?cancelled=1",
+        metadata={"user_id": user["user_id"], "flow": "handyman_pro"},
+    )
+    # Attach the $1 trial fee as an invoice item on the customer, so it appears on the first invoice
+    try:
+        stripe.InvoiceItem.create(
+            customer=customer_id, price=trial_price.id,
+            description="Handyman Pro — 7-day trial access",
+            metadata={"trial_fee": "true", "user_id": user["user_id"]},
+        )
+    except stripe.error.StripeError as exc:
+        logger.warning("Failed to attach trial fee invoice item: %s", exc)
+
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+@api.post("/subscriptions/portal")
+async def sub_portal(req: SubCheckoutRequest,
+                     session_token: Optional[str] = Cookie(None),
+                     authorization: Optional[str] = Header(None)):
+    """Open Stripe Customer Portal (cancel, update card, view invoices)."""
+    user = await get_current_user(session_token, authorization)
+    sub = await _get_subscription(user["user_id"])
+    if not sub or not sub.get("stripe_customer_id"):
+        raise HTTPException(404, "No subscription found")
+    try:
+        portal = stripe.billing_portal.Session.create(
+            customer=sub["stripe_customer_id"],
+            return_url=f"{req.origin_url}/handyman",
+        )
+    except stripe.error.InvalidRequestError as exc:
+        # Portal not configured in Dashboard — best effort auto-config
+        msg = (exc.user_message or str(exc)).lower()
+        if "configuration" in msg:
+            try:
+                cfg = stripe.billing_portal.Configuration.create(
+                    business_profile={"headline": "Manage your Handyman Pro membership"},
+                    features={
+                        "customer_update": {"enabled": True, "allowed_updates": ["email", "name", "address"]},
+                        "invoice_history": {"enabled": True},
+                        "payment_method_update": {"enabled": True},
+                        "subscription_cancel": {"enabled": True, "mode": "at_period_end"},
+                    },
+                )
+                portal = stripe.billing_portal.Session.create(
+                    customer=sub["stripe_customer_id"],
+                    return_url=f"{req.origin_url}/handyman",
+                    configuration=cfg.id,
+                )
+            except stripe.error.StripeError as exc2:
+                raise HTTPException(500, f"Portal init failed: {exc2}")
+        else:
+            raise HTTPException(500, f"Portal error: {exc}")
+    return {"portal_url": portal.url}
+
+
+# ============================================================================
+# REFERRAL PROGRAM
+# ============================================================================
+
+class ReferralAttach(BaseModel):
+    code: str
+
+REFERRAL_REWARD_CENTS = 2500  # $25
+MAX_REFERRALS_PER_MONTH = 10
+
+
+def _make_ref_code(user_id: str) -> str:
+    """Deterministic short code from user_id (upper-cased, 8 chars)."""
+    import hashlib
+    return "CP" + hashlib.sha1(user_id.encode()).hexdigest()[:6].upper()
+
+
+async def _ensure_ref_code(user: dict) -> str:
+    code = user.get("referral_code")
+    if code:
+        return code
+    code = _make_ref_code(user["user_id"])
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"referral_code": code}})
+    return code
+
+
+async def _award_referral_credit(new_user_id: str, trigger: str) -> None:
+    """Award $25 credit to referrer + $25 credit to new user on qualifying event."""
+    u = await db.users.find_one({"user_id": new_user_id}, {"_id": 0})
+    if not u:
+        return
+    referred_by = u.get("referred_by")
+    if not referred_by:
+        return
+    # Idempotency: check if this event was already rewarded
+    already = await db.referral_events.find_one(
+        {"referred_user_id": new_user_id, "trigger": trigger}
+    )
+    if already:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    # Monthly cap on referrer
+    from datetime import datetime as _dt
+    month_start = _dt.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    monthly_count = await db.referral_events.count_documents({
+        "referrer_user_id": referred_by,
+        "created_at": {"$gte": month_start},
+    })
+    if monthly_count >= MAX_REFERRALS_PER_MONTH:
+        return
+    await db.referral_events.insert_one({
+        "id": str(uuid.uuid4()),
+        "referrer_user_id": referred_by,
+        "referred_user_id": new_user_id,
+        "trigger": trigger,
+        "reward_cents": REFERRAL_REWARD_CENTS,
+        "created_at": now,
+    })
+    # Both sides get credit
+    for uid, role in [(referred_by, "referrer"), (new_user_id, "referred")]:
+        await db.credits.update_one(
+            {"user_id": uid},
+            {"$inc": {"balance_cents": REFERRAL_REWARD_CENTS},
+             "$setOnInsert": {"user_id": uid, "created_at": now},
+             "$push": {"ledger": {
+                 "id": str(uuid.uuid4()),
+                 "type": "referral_reward",
+                 "role": role,
+                 "amount_cents": REFERRAL_REWARD_CENTS,
+                 "trigger": trigger,
+                 "counterparty_user_id": (new_user_id if role == "referrer" else referred_by),
+                 "created_at": now,
+             }}},
+            upsert=True,
+        )
+
+
+@api.get("/referrals/me")
+async def my_referrals(session_token: Optional[str] = Cookie(None),
+                       authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    code = await _ensure_ref_code(user)
+    credits = await db.credits.find_one({"user_id": user["user_id"]}, {"_id": 0}) or {
+        "balance_cents": 0, "ledger": [],
+    }
+    events = await db.referral_events.find(
+        {"referrer_user_id": user["user_id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    return {
+        "code": code,
+        "reward_cents": REFERRAL_REWARD_CENTS,
+        "monthly_cap": MAX_REFERRALS_PER_MONTH,
+        "balance_cents": credits.get("balance_cents", 0),
+        "ledger": credits.get("ledger", [])[-20:],
+        "successful_referrals": len(events),
+    }
+
+
+@api.post("/referrals/attach")
+async def attach_referral(payload: ReferralAttach,
+                          session_token: Optional[str] = Cookie(None),
+                          authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    if user.get("referred_by"):
+        return {"status": "already_attributed"}
+    code = payload.code.strip().upper()
+    referrer = await db.users.find_one({"referral_code": code}, {"_id": 0})
+    if not referrer:
+        raise HTTPException(404, "Invalid referral code")
+    if referrer["user_id"] == user["user_id"]:
+        raise HTTPException(400, "Cannot refer yourself")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"referred_by": referrer["user_id"],
+                  "referred_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"status": "attached", "referrer_name": referrer.get("name")}
+
+
+# ============================================================================
+# LIVE MATCH MAP
+# ============================================================================
+import hashlib as _hashlib
+import math as _math
+
+
+def _fuzz_coords(lat: float, lng: float, seed_key: str, radius_km: float = 1.0) -> tuple:
+    """Deterministically fuzz a coordinate within ~radius_km. Stable per seed_key."""
+    h = _hashlib.sha1(seed_key.encode()).digest()
+    # two floats in [-1, 1)
+    dx = (int.from_bytes(h[0:4], "big") / 0xFFFFFFFF) * 2 - 1
+    dy = (int.from_bytes(h[4:8], "big") / 0xFFFFFFFF) * 2 - 1
+    # 1 deg lat ≈ 111 km; scale by radius
+    dlat = dy * (radius_km / 111.0)
+    dlng = dx * (radius_km / (111.0 * max(_math.cos(_math.radians(lat)), 0.2)))
+    return lat + dlat, lng + dlng
+
+
+NYC_BOROUGH_COORDS = {
+    "manhattan":    (40.7831, -73.9712),
+    "brooklyn":     (40.6782, -73.9442),
+    "queens":       (40.7282, -73.7949),
+    "bronx":        (40.8448, -73.8648),
+    "staten island":(40.5795, -74.1502),
+}
+
+
+def _geocode_service_area(txt: str) -> Optional[tuple]:
+    if not txt:
+        return None
+    t = txt.lower()
+    for name, coords in NYC_BOROUGH_COORDS.items():
+        if name in t:
+            return coords
+    # Default NYC center
+    return (40.7580, -73.9855)
+
+
+@api.get("/map/handymen")
+async def map_handymen():
+    """Fuzzed handyman locations for the Live Map. Only 'available' + 'verified'."""
+    profiles = await db.handyman_profiles.find({}, {"_id": 0}).to_list(200)
+    profiles = [p for p in profiles if _is_publicly_visible(p) and p.get("available", True)]
+    user_ids = [p["user_id"] for p in profiles]
+    users = {u["user_id"]: u async for u in db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0})}
+    out = []
+    for p in profiles:
+        u = users.get(p["user_id"])
+        if not u:
+            continue
+        coords = _geocode_service_area(p.get("service_area", ""))
+        if not coords:
+            continue
+        lat, lng = _fuzz_coords(coords[0], coords[1], p["user_id"])
+        out.append({
+            "user_id": p["user_id"],
+            "name": u.get("name"),
+            "picture": u.get("picture"),
+            "role_title": p.get("role_title"),
+            "rating": p.get("rating", 4.8),
+            "skills": (p.get("skills") or [])[:3],
+            "lat": round(lat, 5),
+            "lng": round(lng, 5),
+        })
+    return out
+
+
+@api.get("/map/jobs")
+async def map_jobs():
+    """Recent jobs (last 15 min) with fuzzed coords for pulse animations."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat()
+    jobs = await db.jobs.find(
+        {"created_at": {"$gte": cutoff}},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(50)
+    out = []
+    for j in jobs:
+        coords = _geocode_service_area(j.get("location", ""))
+        if not coords:
+            continue
+        lat, lng = _fuzz_coords(coords[0], coords[1], j["job_id"])
+        out.append({
+            "job_id": j["job_id"],
+            "category": j.get("category"),
+            "created_at": j.get("created_at"),
+            "lat": round(lat, 5),
+            "lng": round(lng, 5),
+        })
+    return out
+
+
+@api.get("/map/stream")
+async def map_stream():
+    """Public SSE stream of newly-posted jobs for map pulses.
+    Broadcasts fuzzed coords + category on every /api/jobs POST."""
+    q: asyncio.Queue = asyncio.Queue(maxsize=100)
+    _map_subscribers.append(q)
+
+    async def gen():
+        try:
+            yield f"data: {jsonlib.dumps({'ready': True})}\n\n"
+            while True:
+                try:
+                    payload = await asyncio.wait_for(q.get(), timeout=25.0)
+                    yield f"data: {jsonlib.dumps(payload)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"
+        finally:
+            try:
+                _map_subscribers.remove(q)
+            except ValueError:
+                pass
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @api.get("/sitemap.xml")

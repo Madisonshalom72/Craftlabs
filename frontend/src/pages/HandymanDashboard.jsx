@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import BookingChat from "@/components/BookingChat";
 import CraftsmanOnboarding from "@/components/CraftsmanOnboarding";
+import ReferralPanel from "@/components/ReferralPanel";
 import { API, http } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
-  Star, MapPin, Clock, DollarSign, Sparkles, CheckCircle2, XCircle, Loader2, TrendingUp, Zap, Wallet, MessageSquare, Radio, Bell, BellOff,
+  Star, MapPin, Clock, DollarSign, Sparkles, CheckCircle2, XCircle, Loader2, TrendingUp, Zap, Wallet, MessageSquare, Radio, Bell, BellOff, Crown, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { isPushSupported, isSubscribed, subscribeToPush, unsubscribeFromPush, sendTestPush } from "@/lib/push";
@@ -24,11 +25,17 @@ export default function HandymanDashboard() {
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [sub, setSub] = useState(null);
   const esRef = useRef(null);
 
   useEffect(() => {
     if (profile && !profile.onboarded) setShowOnboarding(true);
   }, [profile]);
+
+  useEffect(() => {
+    if (!user) return;
+    http.get("/subscriptions/me").then(r => setSub(r.data)).catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     (async () => {
@@ -111,7 +118,16 @@ export default function HandymanDashboard() {
       setLeads(l => l.filter(j => j.job_id !== job_id));
       setAssigned(a => [data, ...a]);
       toast.success("Job accepted — customer notified");
-    } catch { toast.error("Could not accept"); }
+    } catch (e) {
+      if (e?.response?.status === 402) {
+        toast.error("Handyman Pro required", {
+          description: "Start your $1 trial to accept leads.",
+          action: { label: "Get Pro", onClick: () => navigate("/pro") },
+        });
+      } else {
+        toast.error("Could not accept");
+      }
+    }
   };
 
   const declineJob = (job_id) => {
@@ -197,6 +213,44 @@ export default function HandymanDashboard() {
               <div className="font-heading text-2xl font-bold">{s.value}</div>
             </div>
           ))}
+        </div>
+
+        {/* Subscription banner */}
+        {sub && !sub.is_active && (
+          <div data-testid="pro-upsell-banner" className="mb-6 rounded-2xl p-5 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <Crown className="w-6 h-6 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="font-heading font-bold">Unlock live leads with Handyman Pro</div>
+                <div className="text-sm text-slate-400 mt-0.5">7 days for $1, then $49/mo — cancel anytime.</div>
+              </div>
+            </div>
+            <Link
+              to="/pro"
+              data-testid="pro-upsell-cta"
+              className="px-5 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold text-sm whitespace-nowrap"
+            >Start $1 trial</Link>
+          </div>
+        )}
+        {sub?.is_active && sub.subscription?.status === "past_due" && (
+          <div data-testid="pro-pastdue-banner" className="mb-6 rounded-2xl p-4 bg-red-500/10 border border-red-500/30 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            <div className="flex-1 text-sm">
+              <span className="font-semibold">Payment failed.</span>{" "}
+              <span className="text-slate-400">Update your card to keep receiving leads.</span>
+            </div>
+            <Link to="/pro" className="text-sm font-semibold text-amber-300 hover:underline">Fix →</Link>
+          </div>
+        )}
+        {sub?.is_active && sub.subscription?.status === "trialing" && (
+          <div data-testid="pro-trial-banner" className="mb-6 rounded-xl p-3 bg-emerald-500/10 border border-emerald-500/30 text-sm text-emerald-300">
+            <Crown className="inline w-4 h-4 mr-1" /> Pro trial active — you have full access to all leads.
+          </div>
+        )}
+
+        {/* Referral panel */}
+        <div className="mb-6">
+          <ReferralPanel />
         </div>
 
         <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-xl border border-white/8 w-fit">

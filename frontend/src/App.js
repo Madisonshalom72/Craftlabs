@@ -17,6 +17,10 @@ import AuthorPage from "@/pages/AuthorPage";
 import AdminLicenses from "@/pages/AdminLicenses";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
+import HandymanPro from "@/pages/HandymanPro";
+import ProSuccess from "@/pages/ProSuccess";
+import LiveMap from "@/pages/LiveMap";
+import ReferralLanding from "@/pages/ReferralLanding";
 
 function AppRouter() {
   const location = useLocation();
@@ -34,6 +38,10 @@ function AppRouter() {
       <Route path="/login" element={<Login />} />
       <Route path="/dashboard" element={<CustomerDashboard />} />
       <Route path="/handyman" element={<HandymanDashboard />} />
+      <Route path="/pro" element={<HandymanPro />} />
+      <Route path="/pro/success" element={<ProSuccess />} />
+      <Route path="/live" element={<LiveMap />} />
+      <Route path="/r/:code" element={<ReferralLanding />} />
       <Route path="/payment/success" element={<PaymentSuccess />} />
       <Route path="/payment/cancel" element={<PaymentCancel />} />
     </Routes>

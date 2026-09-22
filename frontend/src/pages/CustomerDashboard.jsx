@@ -5,6 +5,7 @@ import AIDiagnosticStudio from "@/components/AIDiagnosticStudio";
 import AIChat from "@/components/AIChat";
 import BookingChat from "@/components/BookingChat";
 import ReviewModal from "@/components/ReviewModal";
+import ReferralPanel from "@/components/ReferralPanel";
 import { http } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -142,6 +143,10 @@ export default function CustomerDashboard() {
             </h1>
             <p className="text-slate-400 mt-1 text-sm">Post a job in one photo. AI handles the rest.</p>
           </div>
+        </div>
+
+        <div className="mb-6">
+          <ReferralPanel />
         </div>
 
         <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-xl border border-white/8 w-fit">

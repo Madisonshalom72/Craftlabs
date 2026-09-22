@@ -2,7 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { http } from "@/lib/api";
-import { Wrench, LogOut, LayoutDashboard, HardHat, BookOpen, ShieldCheck } from "lucide-react";
+import { Wrench, LogOut, LayoutDashboard, HardHat, BookOpen, ShieldCheck, Radio, Crown } from "lucide-react";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -34,12 +34,28 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2">
           <Link
+            to="/live"
+            data-testid="nav-live-btn"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium text-amber-300 hover:bg-amber-500/10 transition"
+          >
+            <Radio className="w-4 h-4 animate-pulse" /> Live
+          </Link>
+          <Link
             to="/blog"
             data-testid="nav-blog-btn"
             className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium text-slate-300 hover:bg-white/5 transition"
           >
             <BookOpen className="w-4 h-4" /> Field Notes
           </Link>
+          {user?.role === "handyman" && (
+            <Link
+              to="/pro"
+              data-testid="nav-pro-btn"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium text-amber-400 hover:bg-amber-500/10 transition"
+            >
+              <Crown className="w-4 h-4" /> Pro
+            </Link>
+          )}
           {isAdmin && (
             <Link
               to="/admin/licenses"
