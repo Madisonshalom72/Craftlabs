@@ -1,0 +1,37 @@
+{
+  "summary": "Iter5 tested Stripe Subscriptions, Referral Program, and Live Match Map end-to-end. 12/12 backend pytest cases pass. Playwright verified /live (public, Leaflet map + 12 pins + correct h1), /r/TESTCODE (writes cp_ref_code to localStorage + redirects /), /pro hero + Start $1 trial button (click actually redirects to real Stripe Checkout URL cs_test_...), Navbar shows Live + Pro links for logged-in handyman, handyman dashboard shows pro-upsell-banner + referral-panel (with CP-prefixed share URL) + copy-link button, customer dashboard also shows referral-panel. Fixed one demo-login data-hygiene bug so role resets on each demo login (was causing customer session to return handyman role).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/demo-login", "issue": "Did not reset demo user's role on each login; if a prior test mutated demo.customer to role=handyman via /auth/set-role the state leaked. Fixed in this iteration — demo-login now self-heals role to match request body."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter5_new_features.py",
+    "/app/test_reports/pytest/iter5.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 2222 lines — still not split. Highly recommended to modularize (auth, jobs, subscriptions, referrals, map, stripe/webhooks).",
+    "Subscription checkout attaches a $1 InvoiceItem AFTER creating the Checkout Session; Stripe attaches all pending invoice items to the first invoice, but ordering means if session creation succeeds and InvoiceItem fails you get a session without the trial fee — consider creating InvoiceItem before the Session (rollback on failure).",
+    "_get_subscription lookup by user_id relies on webhook writes to db.subscriptions; ensure webhook idempotency and dedup by stripe subscription id (already handled but worth documenting).",
+    "/api/map/stream has no auth or rate limiting on the public SSE — a single client can hold 100 slots; consider IP-based cap.",
+    "REFERRAL_REWARD_CENTS credit is granted but no code path was found that spends/decrements credits when a job is booked — verify credit application in checkout/booking flow (not part of this iter's scope but flagged)."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (demo-login role self-heal, 3 lines)",
+    "/app/backend/tests/test_iter5_new_features.py (new)"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% (7/7 flows)"},
+  "test_credentials": "POST /api/auth/demo-login {role:'customer'|'handyman'} — now always resets role after fix.",
+  "seed_data_creation": "One TEST_ prefixed job during accept-gating test; a couple of ephemeral referral users via demo-login.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter5 file /app/backend/tests/test_iter5_new_features.py plus prior test_new_features.py + test_regression_iter4.py remain reusable. All new endpoints (/subscriptions/*, /referrals/*, /map/*) confirmed working. Real Stripe checkout URL is returned (not stubbed). If future testing needs to force 402 on accept, ensure demo handyman has NO row in db.subscriptions with status trialing/active.",
+  "rca of the issue": "test_checkout_as_customer_403 initially failed because demo.customer had role='handyman' persisted in DB from earlier test runs (a prior test/agent called POST /api/auth/set-role). Root cause: /api/auth/demo-login only fetched the seeded user without normalizing role. Fix applied: demo-login now updates the user record so role matches the requested demo role."
+}

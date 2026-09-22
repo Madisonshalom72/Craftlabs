@@ -385,6 +385,10 @@ async def demo_login(payload: RoleUpdate, response: Response):
         user = await db.users.find_one({"email": "demo.customer@craftpulse.ai"}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=500, detail="Demo user not seeded")
+    # Ensure demo user role matches the requested role (self-heal any prior mutations)
+    if user.get("role") != payload.role:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"role": payload.role}})
+        user["role"] = payload.role
     session_token = f"demo_{uuid.uuid4().hex}"
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=7)
