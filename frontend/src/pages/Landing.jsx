@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
+import LiveMapPreview from "@/components/LiveMapPreview";
 import { http } from "@/lib/api";
 import {
   ArrowRight, Zap, Droplet, Wind, Hammer, Home, Radio, Wrench,
@@ -93,6 +94,9 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* LIVE MAP PREVIEW */}
+      <LiveMapPreview />
 
       {/* CATEGORIES */}
       <section id="services" className="max-w-7xl mx-auto px-5 lg:px-8 py-10">

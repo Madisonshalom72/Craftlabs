@@ -75,6 +75,8 @@ class HandymanProfileUpdate(BaseModel):
     license_number: Optional[str] = None
     agreement_accepted: Optional[bool] = None
     onboarded: Optional[bool] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 class JobCreate(BaseModel):
     category: str
@@ -2106,7 +2108,11 @@ async def map_handymen():
         u = users.get(p["user_id"])
         if not u:
             continue
-        coords = _geocode_service_area(p.get("service_area", ""))
+        # Prefer precise browser-geolocated coords if the pro has consented
+        if isinstance(p.get("lat"), (int, float)) and isinstance(p.get("lng"), (int, float)):
+            coords = (p["lat"], p["lng"])
+        else:
+            coords = _geocode_service_area(p.get("service_area", ""))
         if not coords:
             continue
         lat, lng = _fuzz_coords(coords[0], coords[1], p["user_id"])
@@ -2119,6 +2125,7 @@ async def map_handymen():
             "skills": (p.get("skills") or [])[:3],
             "lat": round(lat, 5),
             "lng": round(lng, 5),
+            "precise": bool(p.get("lat") and p.get("lng")),
         })
     return out
 

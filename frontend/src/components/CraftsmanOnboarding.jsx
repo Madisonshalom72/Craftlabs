@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { http } from "@/lib/api";
 import { toast } from "sonner";
 import {
-  X, ArrowRight, ArrowLeft, Loader2, ShieldCheck, Upload, FileText, CheckCircle2,
+  X, ArrowRight, ArrowLeft, Loader2, ShieldCheck, Upload, FileText, CheckCircle2, MapPin, Crosshair,
 } from "lucide-react";
 
 const ALL_SKILLS = [
@@ -37,8 +37,37 @@ export default function CraftsmanOnboarding({ profile, onDone, onSkip }) {
     license_type: profile?.license_type || "",
     license_number: profile?.license_number || "",
     license_base64: profile?.license_base64 || "",
+    lat: profile?.lat || null,
+    lng: profile?.lng || null,
     agreement_accepted: false,
   });
+  const [locBusy, setLocBusy] = useState(false);
+
+  const useMyLocation = () => {
+    if (!("geolocation" in navigator)) {
+      return toast.error("Geolocation isn't available in this browser");
+    }
+    setLocBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setForm(f => ({
+          ...f,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        }));
+        setLocBusy(false);
+        toast.success("Location set — your map pin will be sharpened to street level");
+      },
+      (err) => {
+        setLocBusy(false);
+        const msg = err?.code === 1
+          ? "Permission denied. You can still enter your service area manually."
+          : "Couldn't get your location. Try again or enter it manually.";
+        toast.error(msg);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
+    );
+  };
 
   const toggleSkill = (s) =>
     setForm(f => ({
@@ -165,6 +194,35 @@ export default function CraftsmanOnboarding({ profile, onDone, onSkip }) {
                   className="w-full bg-slate-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-500/60"
                 />
               </FieldLabel>
+              <div className="rounded-xl bg-slate-900/40 border border-white/10 p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex items-start gap-2.5">
+                    <MapPin className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <div className="text-sm font-semibold">Sharpen your map pin</div>
+                      <p className="text-xs text-slate-400 mt-0.5 max-w-sm">
+                        Share your rough location to appear on the Live Map at street level (fuzzed to ~1 km for privacy).
+                      </p>
+                      {form.lat && form.lng && (
+                        <div data-testid="onboard-geo-set" className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-emerald-400">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Location set · {form.lat.toFixed(3)}, {form.lng.toFixed(3)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    data-testid="onboard-use-location-btn"
+                    type="button"
+                    onClick={useMyLocation}
+                    disabled={locBusy}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-amber-500/15 border border-amber-500/40 hover:bg-amber-500/25 text-amber-300 text-xs font-semibold transition whitespace-nowrap disabled:opacity-50"
+                  >
+                    {locBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Crosshair className="w-3.5 h-3.5" />}
+                    {form.lat ? "Update location" : "Use my location"}
+                  </button>
+                </div>
+              </div>
               <FieldLabel label={`Bio (${form.bio.length}/500 · min 30 chars)`} testid="onboard-bio">
                 <textarea
                   value={form.bio}
