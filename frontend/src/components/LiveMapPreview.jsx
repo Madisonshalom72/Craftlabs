@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, CircleMarker, Circle } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Circle } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { API, http } from "@/lib/api";
 import { Radio, ArrowRight, Users, Zap } from "lucide-react";
+import { metaFor, categoryIconSvg } from "@/lib/categoryMeta";
 
 const NYC_CENTER = [40.758, -73.9855];
 
@@ -29,12 +30,23 @@ function JobPulse({ job }) {
   const phase = (tick % 20) / 20;
   const radius = 15 + phase * 220;
   const opacity = 0.55 * (1 - phase);
+  const meta = metaFor(job.category);
+  const icon = L.divIcon({
+    className: "cp-landing-pulse-icon",
+    html: `<div style="width:22px;height:22px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      background:${meta.color};
+      border:2px solid ${meta.ring};
+      box-shadow:0 0 0 2px rgba(15,23,42,0.7),0 2px 6px rgba(0,0,0,0.5);
+      ">${categoryIconSvg(job.category, 11, "#0f172a")}</div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  });
   return (
     <>
       <Circle center={[job.lat, job.lng]} radius={radius}
-        pathOptions={{ color: "#F59E0B", weight: 2, opacity, fillOpacity: opacity * 0.15 }} />
-      <CircleMarker center={[job.lat, job.lng]} radius={6}
-        pathOptions={{ color: "#F59E0B", fillColor: "#FBBF24", fillOpacity: 0.9, weight: 2 }} />
+        pathOptions={{ color: meta.ring, weight: 2, opacity, fillOpacity: opacity * 0.15 }} />
+      <Marker position={[job.lat, job.lng]} icon={icon} interactive={false} />
     </>
   );
 }
