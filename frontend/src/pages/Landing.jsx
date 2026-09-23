@@ -2,11 +2,12 @@ import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import LiveMapPreview from "@/components/LiveMapPreview";
+import WalkthroughModal from "@/components/WalkthroughModal";
 import useSEO from "@/hooks/useSEO";
 import { http } from "@/lib/api";
 import {
   ArrowRight, Zap, Droplet, Wind, Hammer, Home, Radio, Wrench,
-  ScanEye, Sparkles, ShieldCheck, Star, MapPin, Clock,
+  ScanEye, Sparkles, ShieldCheck, Star, MapPin, Clock, PlayCircle,
   PanelTop, DoorOpen, TrendingUp, Paintbrush, Grid3x3, Refrigerator, Fence, KeyRound,
 } from "lucide-react";
 
@@ -23,6 +24,24 @@ export default function Landing() {
   });
   const [handymen, setHandymen] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [showTour, setShowTour] = useState(false);
+
+  useEffect(() => {
+    http.get("/handymen").then(r => setHandymen(r.data.slice(0, 4)));
+    http.get("/categories").then(r => setCategories(r.data));
+    // Auto-open the tour on first visit (once per browser)
+    try {
+      if (!localStorage.getItem("cp_tour_seen")) {
+        const t = setTimeout(() => setShowTour(true), 800);
+        return () => clearTimeout(t);
+      }
+    } catch { /* ignore private-mode denial */ }
+  }, []);
+
+  const closeTour = () => {
+    setShowTour(false);
+    try { localStorage.setItem("cp_tour_seen", "1"); } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     http.get("/handymen").then(r => setHandymen(r.data.slice(0, 4)));
@@ -32,6 +51,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen">
       <Navbar />
+      <WalkthroughModal open={showTour} onClose={closeTour} />
 
       {/* HERO */}
       <section className="max-w-7xl mx-auto px-5 lg:px-8 pt-14 lg:pt-24 pb-16">
@@ -62,6 +82,14 @@ export default function Landing() {
               >
                 Diagnose a Repair <ArrowRight className="w-4 h-4" />
               </Link>
+              <button
+                type="button"
+                data-testid="hero-cta-watch-tour"
+                onClick={() => setShowTour(true)}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-amber-500/40 hover:border-amber-500/70 hover:bg-amber-500/10 text-amber-300 font-semibold transition"
+              >
+                <PlayCircle className="w-4 h-4" /> Watch 30s tour
+              </button>
               <Link
                 to="/login"
                 data-testid="hero-cta-handyman"
