@@ -27,6 +27,9 @@ import ReferralLanding from "@/pages/ReferralLanding";
 import TermsOfService from "@/pages/TermsOfService";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import AccountRecover from "@/pages/AccountRecover";
+import VerifyEmail from "@/pages/VerifyEmail";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 
 function AppRouter() {
   const location = useLocation();
@@ -54,6 +57,9 @@ function AppRouter() {
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/account/recover" element={<AccountRecover />} />
+      <Route path="/verify" element={<VerifyEmail />} />
+      <Route path="/forgot" element={<ForgotPassword />} />
+      <Route path="/reset" element={<ResetPassword />} />
       <Route path="/payment/success" element={<PaymentSuccess />} />
       <Route path="/payment/cancel" element={<PaymentCancel />} />
     </Routes>

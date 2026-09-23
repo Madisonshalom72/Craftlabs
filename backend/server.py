@@ -4,11 +4,13 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import re
 import logging
 import uuid
 import httpx
 import stripe
 import json as jsonlib
+from html import escape
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -331,6 +333,7 @@ async def get_current_user(
     user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    user.pop("password_hash", None)  # Never leak password hash
     return user
 
 
@@ -411,6 +414,296 @@ async def demo_login(payload: RoleUpdate, response: Response):
     return {"user": user, "session_token": session_token}
 
 
+# ============================================================================
+# EMAIL + PASSWORD AUTH (customers + handymen; coexists with Google OAuth)
+# ============================================================================
+from collections import deque as _deque
+
+_signup_attempts: Dict[str, _deque] = defaultdict(lambda: _deque(maxlen=10))
+USER_LOGIN_MAX_FAILS = 5
+USER_LOGIN_WINDOW_SECONDS = 15 * 60
+EMAIL_VERIFY_TTL_HOURS = 48
+PASSWORD_RESET_TTL_MINUTES = 60
+EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+
+
+class EmailSignupRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+    role: Optional[str] = "customer"
+
+
+class EmailLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class EmailForgotRequest(BaseModel):
+    email: str
+
+
+class EmailResetRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class ResendVerifyRequest(BaseModel):
+    email: str
+
+
+def _valid_email(e: str) -> bool:
+    return bool(EMAIL_RE.match((e or "").strip()))
+
+
+def _user_rate_check(ip: str) -> None:
+    now = datetime.now(timezone.utc).timestamp()
+    dq = _signup_attempts[ip]
+    while dq and (now - dq[0]) > USER_LOGIN_WINDOW_SECONDS:
+        dq.popleft()
+    if len(dq) >= USER_LOGIN_MAX_FAILS:
+        raise HTTPException(429, "Too many attempts. Try again in 15 minutes.")
+
+
+def _user_rate_fail(ip: str) -> None:
+    _signup_attempts[ip].append(datetime.now(timezone.utc).timestamp())
+
+
+async def _issue_user_session(user: dict, response: Response) -> str:
+    """Create a session_token row + set the cookie (mirrors OAuth flow)."""
+    session_token = f"pw_{uuid.uuid4().hex}"
+    now = datetime.now(timezone.utc)
+    await db.user_sessions.insert_one({
+        "user_id": user["user_id"], "session_token": session_token,
+        "expires_at": (now + timedelta(days=7)).isoformat(),
+        "created_at": now.isoformat(),
+    })
+    response.set_cookie(
+        key="session_token", value=session_token,
+        httponly=True, secure=True, samesite="none",
+        path="/", max_age=7 * 24 * 60 * 60,
+    )
+    return session_token
+
+
+async def _send_verify_email(user: dict, token: str) -> None:
+    frontend = os.environ.get("FRONTEND_URL", "https://fixit-ai-6.preview.emergentagent.com")
+    verify_url = f"{frontend}/verify?token={token}"
+    subject = "Verify your CraftPulse email"
+    html = (
+        f'<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px">'
+        f'<tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px">'
+        f'<tr><td>'
+        f'<div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div>'
+        f'<h1 style="font-size:22px;margin:0 0 10px">Welcome, {escape(user.get("name") or "there")}!</h1>'
+        f'<p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p>'
+        f'<p><a href="{escape(verify_url)}" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600">Verify email</a></p>'
+        f'<p style="font-size:12px;color:#6B7280">Didn&rsquo;t create an account? Ignore this email.</p>'
+        f'</td></tr></table></td></tr></table>'
+    )
+    await send_email(to=user["email"], subject=subject, html=html)
+
+
+async def _send_password_reset_email(email: str, token: str, name: str) -> None:
+    frontend = os.environ.get("FRONTEND_URL", "https://fixit-ai-6.preview.emergentagent.com")
+    reset_url = f"{frontend}/reset?token={token}"
+    subject = "Reset your CraftPulse password"
+    html = (
+        f'<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px">'
+        f'<tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px">'
+        f'<tr><td>'
+        f'<div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div>'
+        f'<h1 style="font-size:22px;margin:0 0 10px">Reset your password</h1>'
+        f'<p style="line-height:1.6">Hi {escape(name or "there")}, we received a request to reset your CraftPulse password. This link expires in 60 minutes.</p>'
+        f'<p><a href="{escape(reset_url)}" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600">Set a new password</a></p>'
+        f'<p style="font-size:12px;color:#6B7280">If you didn&rsquo;t request this, ignore this email — your password stays unchanged.</p>'
+        f'</td></tr></table></td></tr></table>'
+    )
+    await send_email(to=email, subject=subject, html=html)
+
+
+@api.post("/auth/signup")
+async def email_signup(payload: EmailSignupRequest, request: Request):
+    ip = _client_ip(request)
+    _user_rate_check(ip)
+    email = (payload.email or "").strip().lower()
+    name = (payload.name or "").strip()
+    password = payload.password or ""
+    role = payload.role if payload.role in ("customer", "handyman") else "customer"
+    if not _valid_email(email):
+        raise HTTPException(400, "Invalid email")
+    if len(password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    if len(name) < 1:
+        raise HTTPException(400, "Name is required")
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        if existing.get("password_hash"):
+            if not existing.get("email_verified"):
+                token = _secrets.token_urlsafe(32)
+                await db.email_verify_tokens.insert_one({
+                    "token": token, "user_id": existing["user_id"],
+                    "expires_at": (datetime.now(timezone.utc) + timedelta(hours=EMAIL_VERIFY_TTL_HOURS)).isoformat(),
+                    "created_at": datetime.now(timezone.utc).isoformat(), "used": False,
+                })
+                asyncio.create_task(_send_verify_email(existing, token))
+            return {"ok": True, "message": "Check your email to verify your account."}
+        # OAuth-only user setting a password — attach to same account
+        pwd_hash = _admin_hash_password(password)
+        await db.users.update_one({"user_id": existing["user_id"]},
+                                  {"$set": {"password_hash": pwd_hash,
+                                            "email_verified": True,
+                                            "email_verified_at": datetime.now(timezone.utc).isoformat()}})
+        return {"ok": True, "message": "Password set. You can now sign in with email or Google."}
+    # Fresh signup
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc).isoformat()
+    new_user = {
+        "user_id": user_id, "email": email, "name": name, "role": role,
+        "password_hash": _admin_hash_password(password),
+        "email_verified": False, "picture": None,
+        "created_at": now, "auth_provider": "email",
+    }
+    await db.users.insert_one(new_user)
+    token = _secrets.token_urlsafe(32)
+    await db.email_verify_tokens.insert_one({
+        "token": token, "user_id": user_id,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=EMAIL_VERIFY_TTL_HOURS)).isoformat(),
+        "created_at": now, "used": False,
+    })
+    asyncio.create_task(_send_verify_email(new_user, token))
+    logger.info("Email signup for user_id=%s email=%s", user_id, email)
+    return {"ok": True, "message": "Check your email to verify your account."}
+
+
+@api.get("/auth/verify")
+async def email_verify(token: str):
+    doc = await db.email_verify_tokens.find_one({"token": token}, {"_id": 0})
+    if not doc or doc.get("used"):
+        raise HTTPException(400, "Invalid or already-used verification link")
+    try:
+        exp = datetime.fromisoformat(doc["expires_at"])
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+    except Exception:
+        raise HTTPException(400, "Invalid link")
+    if exp < datetime.now(timezone.utc):
+        raise HTTPException(400, "Verification link expired — request a new one")
+    await db.users.update_one(
+        {"user_id": doc["user_id"]},
+        {"$set": {"email_verified": True,
+                  "email_verified_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    await db.email_verify_tokens.update_one(
+        {"token": token}, {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"ok": True, "message": "Email verified. You can now sign in."}
+
+
+@api.post("/auth/resend-verification")
+async def resend_verification(payload: ResendVerifyRequest, request: Request):
+    ip = _client_ip(request)
+    _user_rate_check(ip)
+    email = (payload.email or "").strip().lower()
+    generic = {"ok": True, "message": "If that account needs verification, we sent a new link."}
+    if not _valid_email(email):
+        return generic
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user or user.get("email_verified"):
+        return generic
+    token = _secrets.token_urlsafe(32)
+    await db.email_verify_tokens.insert_one({
+        "token": token, "user_id": user["user_id"],
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=EMAIL_VERIFY_TTL_HOURS)).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(), "used": False,
+    })
+    asyncio.create_task(_send_verify_email(user, token))
+    return generic
+
+
+@api.post("/auth/login-email")
+async def email_login(payload: EmailLoginRequest, request: Request, response: Response):
+    ip = _client_ip(request)
+    _user_rate_check(ip)
+    email = (payload.email or "").strip().lower()
+    password = payload.password or ""
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    fake_hash = "$2b$12$" + "a" * 53
+    hashed = (user or {}).get("password_hash") or fake_hash
+    password_ok = _admin_verify_password(password, hashed)
+    if not user or not user.get("password_hash") or not password_ok:
+        _user_rate_fail(ip)
+        raise HTTPException(401, "Invalid email or password")
+    if not user.get("email_verified"):
+        raise HTTPException(403, "Please verify your email before signing in")
+    await _issue_user_session(user, response)
+    logger.info("Email login OK user_id=%s email=%s ip=%s", user["user_id"], email, ip)
+    user.pop("password_hash", None)
+    return {"user": user}
+
+
+@api.post("/auth/forgot-password")
+async def email_forgot(payload: EmailForgotRequest, request: Request):
+    ip = _client_ip(request)
+    _user_rate_check(ip)
+    email = (payload.email or "").strip().lower()
+    generic = {"ok": True, "message": "If that email is registered, we sent a reset link."}
+    if not _valid_email(email):
+        return generic
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user or not user.get("password_hash"):
+        return generic
+    token = _secrets.token_urlsafe(32)
+    await db.password_reset_tokens.insert_one({
+        "token": token, "user_id": user["user_id"],
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_TTL_MINUTES)).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(), "used": False, "ip": ip,
+    })
+    asyncio.create_task(_send_password_reset_email(email, token, user.get("name") or ""))
+    return generic
+
+
+@api.post("/auth/reset-password")
+async def email_reset(payload: EmailResetRequest, request: Request):
+    if not payload.token or not payload.new_password:
+        raise HTTPException(400, "Token and new password required")
+    if len(payload.new_password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    doc = await db.password_reset_tokens.find_one({"token": payload.token}, {"_id": 0})
+    if not doc or doc.get("used"):
+        raise HTTPException(400, "Invalid or already-used token")
+    try:
+        exp = datetime.fromisoformat(doc["expires_at"])
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+    except Exception:
+        raise HTTPException(400, "Invalid token")
+    if exp < datetime.now(timezone.utc):
+        raise HTTPException(400, "Reset token expired — request a new one")
+    new_hash = _admin_hash_password(payload.new_password)
+    await db.users.update_one(
+        {"user_id": doc["user_id"]},
+        {"$set": {"password_hash": new_hash,
+                  "email_verified": True,
+                  "password_updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    await db.password_reset_tokens.update_one(
+        {"token": payload.token},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    # Invalidate any active sessions for this user
+    await db.user_sessions.delete_many({"user_id": doc["user_id"]})
+    return {"ok": True, "message": "Password updated. Please sign in."}
+
+
+@api.post("/auth/logout")
+async def logout(response: Response, session_token: Optional[str] = Cookie(None)):
+    if session_token:
+        await db.user_sessions.delete_one({"session_token": session_token})
+    response.delete_cookie(key="session_token", path="/", samesite="none", secure=True)
+    return {"ok": True}
+
+
 @api.get("/auth/me")
 async def me(user: dict = None, session_token: Optional[str] = Cookie(None),
              authorization: Optional[str] = Header(None)):
@@ -440,14 +733,6 @@ async def set_role(payload: RoleUpdate, session_token: Optional[str] = Cookie(No
             })
     updated = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
     return updated
-
-
-@api.post("/auth/logout")
-async def logout(response: Response, session_token: Optional[str] = Cookie(None)):
-    if session_token:
-        await db.user_sessions.delete_one({"session_token": session_token})
-    response.delete_cookie("session_token", path="/")
-    return {"ok": True}
 
 
 # ============ HANDYMEN ============
