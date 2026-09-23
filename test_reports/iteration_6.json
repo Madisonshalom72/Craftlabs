@@ -1,0 +1,43 @@
+{
+  "summary": "Iter6 tested the 12 pre-deployment improvements (admin username+password auth, forgot/reset, multi-admin CRUD, audit log, analytics dashboard, transactional emailer guardrails, and 3 new public routes: /terms, /privacy, /account/recover). 31/31 new backend pytest cases pass, plus a full regression of Iter5's 12 tests (43/43 total). Playwright verified: admin login bad-pw shows inline error, correct login redirects to /admin/licenses, /admin dashboard loads without crash, all 3 new public pages render with correct <title>/<h1>, /admin/forgot request form returns the generic 'if the account exists' message without user enumeration, and useSEO hook sets per-page titles cleanly. Also verified robots.txt now includes /admin* and /r/ disallows plus the sitemap directive.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/admin/me", "issue": "Only returns is_admin=true for the root ADMIN_USERNAME — a valid non-root admin_users owner/reviewer gets is_admin=false. /api/admin/session correctly returns authenticated=true for both; the Navbar guard should probably use /admin/session (or /admin/me should mirror it). Not blocking since only root admin exists today, but will break multi-admin UX once a second admin is added."},
+      {"endpoint": "POST /api/admin/reset-password", "issue": "Rewrites backend/.env in place using Path.read_text/write_text — no lock/tmpfile+rename, so a concurrent .env writer would race. Low risk in prod (single-writer), but the /app/scripts/ startup should avoid touching that key. Also note: the file loses any trailing blank lines and re-normalises to LF endings."},
+      {"endpoint": "POST /api/admin/forgot", "issue": "Uses asyncio.get_event_loop().create_task inside a running FastAPI request; on newer asyncio this emits DeprecationWarning. Prefer `asyncio.create_task(...)` directly (already inside an event loop)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter6_admin_email.py",
+    "/app/backend/tests/test_iter5_new_features.py",
+    "/app/test_reports/pytest/iter6.xml"
+  ],
+  "action_items": [
+    "Fix /api/admin/me to trust the admin_users table (mirror /api/admin/session) so non-root admins also see is_admin=true.",
+    "Replace `asyncio.get_event_loop().create_task` in /admin/forgot with `asyncio.create_task` to silence DeprecationWarning.",
+    "Consider atomic .env rewrite (tmpfile + os.replace) in /admin/reset-password to protect against partial writes."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 2858 lines — monolithic. Split into auth, admin, jobs, payments, referrals, map, blog modules. Every new iteration compounds risk.",
+    "backend/emailer.py `_fire_and_forget` calls asyncio.run() as fallback which would deadlock if reached from a sync path inside an already-running loop; guard with try/except and log-and-drop instead.",
+    "Recovery reset tokens are stored plaintext in db.admin_reset_tokens — even though they're one-time and 30-min, prefer hashing (sha256) at rest so a DB dump doesn't leak live reset tokens.",
+    "/api/admin/audit has no pagination cursor — the limit param caps at 500 but there is no offset/since filter for older records; fine for MVP.",
+    "Rate limiter is in-process and per-IP only; if backend restarts or scales horizontally, brute-force protection resets. Not a blocker for single-instance k8s deployment but worth noting for prod."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter6_admin_email.py (new)"
+  ],
+  "success_rate": {"backend": "100% (31/31 iter6, 43/43 combined with iter5)", "frontend": "100% (9/9 flows: admin bad login, admin good login, /admin, /terms, /privacy, /account/recover, recover-google-btn, admin-forgot request form, forgot generic response)"},
+  "test_credentials": "Admin: Appfactory24 / Datacap7$ (from /app/memory/test_credentials.md). Demo login via POST /api/auth/demo-login unchanged.",
+  "seed_data_creation": "One TEST_admin_<uuid> reviewer created + disabled + deleted inside test_create_update_delete_reviewer (self-cleaning). One reset token appended to /app/memory/admin_recovery.log (not consumed, will expire in 30 min).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter6 file /app/backend/tests/test_iter6_admin_email.py is idempotent and safe to re-run — it uses TEST_ prefixed usernames that self-clean, and does NOT actually consume a reset token (so backend/.env ADMIN_PASSWORD_HASH is untouched). Combine with iter5 for full regression: `pytest backend/tests/test_iter5_new_features.py backend/tests/test_iter6_admin_email.py`. If a future test needs to exercise the full reset flow end-to-end, read the token from /app/memory/admin_recovery.log AFTER calling /admin/forgot and remember to reset the password back to Datacap7$ afterwards.",
+  "rca of the issue": "N/A — no bugs found in this iteration. All 12 pre-deployment improvements verified working end-to-end."
+}

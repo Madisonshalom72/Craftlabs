@@ -762,7 +762,7 @@ async def admin_forgot(payload: AdminForgotRequest, request: Request):
     )
     # Fire-and-forget email
     try:
-        asyncio.get_event_loop().create_task(_email_admin_reset_token(token, ip))
+        asyncio.create_task(_email_admin_reset_token(token, ip))
     except RuntimeError:
         pass
     return generic
@@ -1068,8 +1068,14 @@ async def admin_me(admin_token: Optional[str] = Cookie(None),
         return {"is_admin": False}
     try:
         p = _admin_decode_token(token)
-        if p.get("role") == "admin" and p.get("sub") == ADMIN_USERNAME:
-            return {"is_admin": True, "username": p["sub"]}
+        if p.get("role") != "admin":
+            return {"is_admin": False}
+        username = p.get("sub")
+        row = await db.admin_users.find_one({"username": username}, {"_id": 0})
+        if row and not row.get("disabled"):
+            return {"is_admin": True, "username": username, "role": row.get("role", "reviewer")}
+        if username == ADMIN_USERNAME:
+            return {"is_admin": True, "username": username, "role": "owner"}
     except pyjwt.PyJWTError:
         pass
     return {"is_admin": False}
@@ -2081,7 +2087,7 @@ async def stripe_webhook(request: Request):
                             amount_cents=int(obj.get("amount_total") or 0),
                             dashboard_url=f"{frontend}/dashboard",
                         )
-                        asyncio.get_event_loop().create_task(
+                        asyncio.create_task(
                             send_email(to=customer["email"], subject=subj, html=html)
                         )
                 except Exception as exc:
@@ -2133,7 +2139,7 @@ async def stripe_webhook(request: Request):
                         monthly_amount_cents=4900,
                         portal_url=portal.url,
                     )
-                    asyncio.get_event_loop().create_task(
+                    asyncio.create_task(
                         send_email(to=user["email"], subject=subj, html=html)
                     )
             except Exception as exc:
@@ -2159,7 +2165,7 @@ async def stripe_webhook(request: Request):
                         customer_name=user.get("name") or "there",
                         portal_url=portal.url,
                     )
-                    asyncio.get_event_loop().create_task(
+                    asyncio.create_task(
                         send_email(to=user["email"], subject=subj, html=html)
                     )
             except Exception as exc:
