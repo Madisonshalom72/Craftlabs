@@ -2927,6 +2927,50 @@ async def _award_referral_credit(new_user_id: str, trigger: str) -> None:
         )
 
 
+@api.get("/referrals/leaderboard")
+async def referral_leaderboard(limit: int = 10):
+    """Public top-referrers board. Names are privacy-fuzzed to first name + last initial."""
+    limit = max(1, min(limit, 25))
+    pipeline = [
+        {"$group": {
+            "_id": "$referrer_user_id",
+            "count": {"$sum": 1},
+            "total_reward_cents": {"$sum": "$reward_cents"},
+            "last_at": {"$max": "$created_at"},
+        }},
+        {"$sort": {"count": -1, "last_at": -1}},
+        {"$limit": limit},
+    ]
+    rows = await db.referral_events.aggregate(pipeline).to_list(limit)
+    user_ids = [r["_id"] for r in rows]
+    users = {u["user_id"]: u async for u in db.users.find(
+        {"user_id": {"$in": user_ids}}, {"_id": 0}
+    )}
+
+    def _display(name: str) -> str:
+        if not name:
+            return "Anonymous"
+        parts = name.strip().split()
+        if len(parts) == 1:
+            return parts[0]
+        return f"{parts[0]} {parts[-1][0]}."
+
+    out = []
+    for rank, r in enumerate(rows, start=1):
+        u = users.get(r["_id"])
+        if not u:
+            continue
+        out.append({
+            "rank": rank,
+            "display_name": _display(u.get("name") or ""),
+            "picture": u.get("picture"),
+            "role": u.get("role"),
+            "count": r["count"],
+            "total_reward_cents": r["total_reward_cents"],
+        })
+    return {"leaderboard": out, "reward_cents_per_referral": REFERRAL_REWARD_CENTS}
+
+
 @api.get("/referrals/me")
 async def my_referrals(session_token: Optional[str] = Cookie(None),
                        authorization: Optional[str] = Header(None)):

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import LiveMapPreview from "@/components/LiveMapPreview";
+import ReferralLeaderboard from "@/components/ReferralLeaderboard";
 import WalkthroughModal from "@/components/WalkthroughModal";
 import useSEO from "@/hooks/useSEO";
 import { http } from "@/lib/api";
@@ -131,6 +132,9 @@ export default function Landing() {
 
       {/* LIVE MAP PREVIEW */}
       <LiveMapPreview />
+
+      {/* REFERRAL LEADERBOARD */}
+      <ReferralLeaderboard />
 
       {/* CATEGORIES */}
       <section id="services" className="max-w-7xl mx-auto px-5 lg:px-8 py-10">
