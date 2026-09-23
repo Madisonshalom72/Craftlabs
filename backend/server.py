@@ -18,6 +18,10 @@ from collections import defaultdict
 from pywebpush import webpush, WebPushException
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent, TextDelta, StreamDone
+from emailer import (
+    send_email, tpl_booking_confirmed, tpl_payment_failed,
+    tpl_trial_ending, tpl_admin_reset,
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -511,29 +515,573 @@ class BulkApprovePayload(BaseModel):
 
 
 async def _require_admin(user: dict):
-    admin_emails = [e.strip().lower() for e in
-                    (os.environ.get("ADMIN_EMAILS") or "demo.customer@craftpulse.ai").split(",")]
-    if not (user.get("is_admin") or (user.get("email") or "").lower() in admin_emails):
+    """DEPRECATED: kept only for backwards compat during migration.
+    New code should call `_require_admin_jwt` via cookie/header."""
+    if not user.get("is_admin"):
         raise HTTPException(403, "Admin only")
     return user
 
 
+# ============================================================================
+# ADMIN AUTHENTICATION (username/password + JWT)
+# ============================================================================
+import bcrypt
+import jwt as pyjwt
+import secrets as _secrets
+from collections import deque
+
+ADMIN_JWT_SECRET = os.environ.get("ADMIN_JWT_SECRET", "")
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "")
+ADMIN_PASSWORD_HASH = os.environ.get("ADMIN_PASSWORD_HASH", "")
+ADMIN_RECOVERY_EMAIL = os.environ.get("ADMIN_RECOVERY_EMAIL", "")
+ADMIN_JWT_ALG = "HS256"
+ADMIN_TOKEN_TTL_HOURS = 12
+ADMIN_RESET_TTL_MINUTES = 30
+
+# In-memory rate limiter: ip -> deque of failed-attempt timestamps
+_admin_login_attempts: Dict[str, deque] = defaultdict(lambda: deque(maxlen=10))
+LOGIN_MAX_FAILS = 5
+LOGIN_WINDOW_SECONDS = 15 * 60
+
+
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AdminForgotRequest(BaseModel):
+    identifier: str  # username OR recovery email (for username-recovery flow)
+
+
+class AdminResetRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+def _admin_verify_password(plain: str, hashed: str) -> bool:
+    if not hashed:
+        return False
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
+
+
+def _admin_hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _admin_create_token(username: str) -> str:
+    payload = {
+        "sub": username,
+        "role": "admin",
+        "iat": int(datetime.now(timezone.utc).timestamp()),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=ADMIN_TOKEN_TTL_HOURS),
+    }
+    return pyjwt.encode(payload, ADMIN_JWT_SECRET, algorithm=ADMIN_JWT_ALG)
+
+
+def _admin_decode_token(token: str) -> dict:
+    return pyjwt.decode(token, ADMIN_JWT_SECRET, algorithms=[ADMIN_JWT_ALG])
+
+
+def _rate_limit_check(ip: str) -> None:
+    now = datetime.now(timezone.utc).timestamp()
+    dq = _admin_login_attempts[ip]
+    # Prune old entries
+    while dq and (now - dq[0]) > LOGIN_WINDOW_SECONDS:
+        dq.popleft()
+    if len(dq) >= LOGIN_MAX_FAILS:
+        raise HTTPException(429, "Too many failed attempts. Try again in 15 minutes.")
+
+
+def _rate_limit_fail(ip: str) -> None:
+    _admin_login_attempts[ip].append(datetime.now(timezone.utc).timestamp())
+
+
+def _rate_limit_reset(ip: str) -> None:
+    _admin_login_attempts.pop(ip, None)
+
+
+async def _require_admin_jwt(
+    request: Request,
+    admin_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+) -> dict:
+    """Dependency: verify the caller has a valid admin JWT (cookie or Bearer header).
+
+    Also loads the admin_users row and enforces `disabled=False`.
+    """
+    token = admin_token
+    if not token and authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    if not token:
+        raise HTTPException(401, "Admin authentication required")
+    try:
+        payload = _admin_decode_token(token)
+    except pyjwt.ExpiredSignatureError:
+        raise HTTPException(401, "Admin session expired")
+    except pyjwt.InvalidTokenError:
+        raise HTTPException(401, "Invalid admin token")
+    if payload.get("role") != "admin":
+        raise HTTPException(401, "Invalid admin token")
+    username = payload.get("sub")
+    # Check the db-backed admin_users table (multi-admin). Root admin is seeded there.
+    row = await db.admin_users.find_one({"username": username}, {"_id": 0})
+    if not row:
+        # Root admin fallback for the very first request before seed completes
+        if username != ADMIN_USERNAME:
+            raise HTTPException(401, "Invalid admin token")
+        return {"username": username, "role": "owner"}
+    if row.get("disabled"):
+        raise HTTPException(403, "Admin account disabled")
+    return {"username": username, "role": row.get("role", "reviewer")}
+
+
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+@api.post("/admin/login")
+async def admin_login(payload: AdminLoginRequest, request: Request, response: Response):
+    if not ADMIN_JWT_SECRET:
+        raise HTTPException(500, "Admin authentication is not configured")
+    ip = _client_ip(request)
+    _rate_limit_check(ip)
+    username = (payload.username or "").strip()
+    password = payload.password or ""
+    # Look up in db.admin_users (multi-admin); falls back to .env root admin
+    row = await db.admin_users.find_one({"username": username}, {"_id": 0})
+    valid = False
+    role = "reviewer"
+    if row:
+        if row.get("disabled"):
+            _rate_limit_fail(ip)
+            raise HTTPException(403, "Account disabled")
+        valid = _admin_verify_password(password, row.get("password_hash", ""))
+        role = row.get("role", "reviewer")
+    elif ADMIN_USERNAME and _secrets.compare_digest(username, ADMIN_USERNAME):
+        # Root admin bootstrap (before startup seed runs)
+        valid = _admin_verify_password(password, ADMIN_PASSWORD_HASH)
+        role = "owner"
+    if not valid:
+        _rate_limit_fail(ip)
+        raise HTTPException(401, "Invalid username or password")
+    _rate_limit_reset(ip)
+    token = _admin_create_token(username)
+    response.set_cookie(
+        key="admin_token", value=token,
+        httponly=True, secure=True, samesite="none",
+        path="/", max_age=ADMIN_TOKEN_TTL_HOURS * 3600,
+    )
+    await _audit_log(username, "admin.login", ip=ip)
+    logger.info("Admin login OK for username=%s from ip=%s", username, ip)
+    return {"ok": True, "username": username, "role": role, "expires_in_hours": ADMIN_TOKEN_TTL_HOURS}
+
+
+@api.post("/admin/logout")
+async def admin_logout(response: Response):
+    response.delete_cookie(key="admin_token", path="/", samesite="none", secure=True)
+    return {"ok": True}
+
+
+@api.get("/admin/session")
+async def admin_session(admin_token: Optional[str] = Cookie(None),
+                        authorization: Optional[str] = Header(None)):
+    """Cheap 'am I logged in?' check for the frontend guard."""
+    token = admin_token
+    if not token and authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    if not token:
+        return {"authenticated": False}
+    try:
+        p = _admin_decode_token(token)
+        if p.get("role") == "admin":
+            username = p.get("sub")
+            # Verify the admin still exists and isn't disabled
+            row = await db.admin_users.find_one({"username": username}, {"_id": 0})
+            if row:
+                if row.get("disabled"):
+                    return {"authenticated": False, "reason": "disabled"}
+                return {"authenticated": True, "username": username, "role": row.get("role", "reviewer")}
+            if username == ADMIN_USERNAME:
+                return {"authenticated": True, "username": username, "role": "owner"}
+    except pyjwt.PyJWTError:
+        pass
+    return {"authenticated": False}
+
+
+@api.post("/admin/forgot")
+async def admin_forgot(payload: AdminForgotRequest, request: Request):
+    """Send a reset token to the fixed recovery email.
+
+    Deliverability: no email service is wired yet, so the token is logged to
+    /app/memory/admin_recovery.log AND to the backend stdout. Wire up Resend/SMTP
+    to email it for real.
+    """
+    ip = _client_ip(request)
+    _rate_limit_check(ip)  # reuse same limit to prevent enumeration abuse
+    ident = (payload.identifier or "").strip().lower()
+    valid = (
+        ident == ADMIN_USERNAME.lower()
+        or ident == (ADMIN_RECOVERY_EMAIL or "").lower()
+    )
+    # ALWAYS return a generic message to prevent user enumeration
+    generic = {"ok": True,
+               "message": f"If the account exists, a reset link has been sent to the recovery email on file."}
+    if not valid:
+        _rate_limit_fail(ip)
+        return generic
+    token = _secrets.token_urlsafe(32)
+    expires = datetime.now(timezone.utc) + timedelta(minutes=ADMIN_RESET_TTL_MINUTES)
+    await db.admin_reset_tokens.insert_one({
+        "token": token, "expires_at": expires.isoformat(),
+        "used": False, "created_at": datetime.now(timezone.utc).isoformat(),
+        "ip": ip,
+    })
+    # Log so the site operator can retrieve it (real email service comes later)
+    try:
+        Path("/app/memory").mkdir(parents=True, exist_ok=True)
+        with open("/app/memory/admin_recovery.log", "a") as f:
+            f.write(
+                f"[{datetime.now(timezone.utc).isoformat()}] "
+                f"Reset token requested from ip={ip}. "
+                f"Send to {ADMIN_RECOVERY_EMAIL}. "
+                f"Username: {ADMIN_USERNAME}. "
+                f"Token: {token} "
+                f"(expires {expires.isoformat()})\n"
+            )
+    except Exception as exc:
+        logger.warning("Could not write recovery log: %s", exc)
+    logger.info(
+        "ADMIN RESET TOKEN issued (send to %s) — token=%s",
+        ADMIN_RECOVERY_EMAIL, token,
+    )
+    # Fire-and-forget email
+    try:
+        asyncio.get_event_loop().create_task(_email_admin_reset_token(token, ip))
+    except RuntimeError:
+        pass
+    return generic
+
+
+@api.post("/admin/reset-password")
+async def admin_reset_password(payload: AdminResetRequest, request: Request):
+    global ADMIN_PASSWORD_HASH
+    if not payload.token or not payload.new_password:
+        raise HTTPException(400, "Token and new password required")
+    if len(payload.new_password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    doc = await db.admin_reset_tokens.find_one({"token": payload.token}, {"_id": 0})
+    if not doc or doc.get("used"):
+        raise HTTPException(400, "Invalid or already-used token")
+    try:
+        exp = datetime.fromisoformat(doc["expires_at"])
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+    except Exception:
+        raise HTTPException(400, "Invalid token")
+    if exp < datetime.now(timezone.utc):
+        raise HTTPException(400, "Token expired")
+    new_hash = _admin_hash_password(payload.new_password)
+    # Update .env in place — atomic write, keep other lines intact
+    env_path = Path(__file__).parent / ".env"
+    lines = env_path.read_text().splitlines()
+    written = False
+    for i, ln in enumerate(lines):
+        if ln.startswith("ADMIN_PASSWORD_HASH="):
+            lines[i] = f'ADMIN_PASSWORD_HASH="{new_hash}"'
+            written = True
+            break
+    if not written:
+        lines.append(f'ADMIN_PASSWORD_HASH="{new_hash}"')
+    env_path.write_text("\n".join(lines) + "\n")
+    # Update in-process too so the change is effective immediately
+    ADMIN_PASSWORD_HASH = new_hash
+    os.environ["ADMIN_PASSWORD_HASH"] = new_hash
+    await db.admin_reset_tokens.update_one(
+        {"token": payload.token}, {"$set": {"used": True,
+        "used_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    logger.info("Admin password reset completed via token from ip=%s", _client_ip(request))
+    return {"ok": True, "message": "Password updated. You can log in now."}
+
+
+# ---- Send admin reset email on /admin/forgot (fire-and-forget after token issue) ----
+async def _email_admin_reset_token(token: str, ip: str) -> None:
+    """Called from /admin/forgot handler. Emails the operator's recovery inbox."""
+    if not ADMIN_RECOVERY_EMAIL:
+        return
+    frontend = os.environ.get("FRONTEND_URL", "https://fixit-ai-6.preview.emergentagent.com")
+    reset_url = f"{frontend}/admin/forgot?token={token}"
+    subject, html = tpl_admin_reset(reset_url=reset_url)
+    await send_email(to=ADMIN_RECOVERY_EMAIL, subject=subject, html=html)
+
+
+# ============================================================================
+# MULTI-ADMIN + AUDIT LOG
+# ============================================================================
+async def _audit_log(
+    actor: str, action: str, target: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None, ip: Optional[str] = None,
+) -> None:
+    """Append an entry to the immutable audit trail."""
+    try:
+        await db.admin_audit.insert_one({
+            "id": str(uuid.uuid4()),
+            "actor": actor,
+            "action": action,
+            "target": target,
+            "metadata": metadata or {},
+            "ip": ip,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as exc:
+        logger.warning("Audit log write failed: %s", exc)
+
+
+class AdminUserCreate(BaseModel):
+    username: str
+    password: str
+    role: str = "reviewer"  # "owner" | "reviewer"
+
+
+class AdminUserUpdate(BaseModel):
+    role: Optional[str] = None
+    disabled: Optional[bool] = None
+    new_password: Optional[str] = None
+
+
+async def _seed_root_admin() -> None:
+    """Ensure the .env admin is present in db.admin_users as an 'owner'."""
+    if not ADMIN_USERNAME:
+        return
+    existing = await db.admin_users.find_one({"username": ADMIN_USERNAME}, {"_id": 0})
+    if existing:
+        # Sync hash from .env if changed via reset-password
+        if existing.get("password_hash") != ADMIN_PASSWORD_HASH:
+            await db.admin_users.update_one(
+                {"username": ADMIN_USERNAME},
+                {"$set": {"password_hash": ADMIN_PASSWORD_HASH}},
+            )
+        return
+    await db.admin_users.insert_one({
+        "username": ADMIN_USERNAME,
+        "password_hash": ADMIN_PASSWORD_HASH,
+        "role": "owner",
+        "disabled": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": "system",
+    })
+
+
+@app.on_event("startup")
+async def _startup_seed_admin():
+    await _seed_root_admin()
+
+
+@api.get("/admin/users")
+async def list_admin_users(request: Request,
+                           admin_token: Optional[str] = Cookie(None),
+                           authorization: Optional[str] = Header(None)):
+    admin = await _require_admin_jwt(request, admin_token, authorization)
+    users = await db.admin_users.find({}, {"_id": 0, "password_hash": 0}).to_list(100)
+    return users
+
+
+@api.post("/admin/users")
+async def create_admin_user(payload: AdminUserCreate, request: Request,
+                            admin_token: Optional[str] = Cookie(None),
+                            authorization: Optional[str] = Header(None)):
+    admin = await _require_admin_jwt(request, admin_token, authorization)
+    # Only owners can add more admins
+    me = await db.admin_users.find_one({"username": admin["username"]}, {"_id": 0})
+    if not me or me.get("role") != "owner":
+        raise HTTPException(403, "Only owner admins can add new admins")
+    if payload.role not in ("owner", "reviewer"):
+        raise HTTPException(400, "Role must be 'owner' or 'reviewer'")
+    if len(payload.password) < 8:
+        raise HTTPException(400, "Password must be 8+ chars")
+    if await db.admin_users.find_one({"username": payload.username}):
+        raise HTTPException(400, "Username already exists")
+    doc = {
+        "username": payload.username, "password_hash": _admin_hash_password(payload.password),
+        "role": payload.role, "disabled": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": admin["username"],
+    }
+    await db.admin_users.insert_one(doc)
+    await _audit_log(admin["username"], "admin.user.create",
+                     target=payload.username, metadata={"role": payload.role},
+                     ip=_client_ip(request))
+    return {"ok": True, "username": payload.username, "role": payload.role}
+
+
+@api.patch("/admin/users/{username}")
+async def update_admin_user(username: str, payload: AdminUserUpdate, request: Request,
+                            admin_token: Optional[str] = Cookie(None),
+                            authorization: Optional[str] = Header(None)):
+    admin = await _require_admin_jwt(request, admin_token, authorization)
+    me = await db.admin_users.find_one({"username": admin["username"]}, {"_id": 0})
+    if not me or me.get("role") != "owner":
+        raise HTTPException(403, "Only owner admins can modify admins")
+    if username == ADMIN_USERNAME and payload.disabled:
+        raise HTTPException(400, "Cannot disable the root admin")
+    update = {}
+    if payload.role in ("owner", "reviewer"):
+        update["role"] = payload.role
+    if payload.disabled is not None:
+        update["disabled"] = payload.disabled
+    if payload.new_password:
+        if len(payload.new_password) < 8:
+            raise HTTPException(400, "Password must be 8+ chars")
+        update["password_hash"] = _admin_hash_password(payload.new_password)
+    if not update:
+        return {"ok": True, "changed": False}
+    r = await db.admin_users.update_one({"username": username}, {"$set": update})
+    if r.matched_count == 0:
+        raise HTTPException(404, "Admin not found")
+    await _audit_log(admin["username"], "admin.user.update",
+                     target=username, metadata={k: v for k, v in update.items() if k != "password_hash"},
+                     ip=_client_ip(request))
+    return {"ok": True, "changed": True}
+
+
+@api.delete("/admin/users/{username}")
+async def delete_admin_user(username: str, request: Request,
+                            admin_token: Optional[str] = Cookie(None),
+                            authorization: Optional[str] = Header(None)):
+    admin = await _require_admin_jwt(request, admin_token, authorization)
+    me = await db.admin_users.find_one({"username": admin["username"]}, {"_id": 0})
+    if not me or me.get("role") != "owner":
+        raise HTTPException(403, "Only owner admins can delete admins")
+    if username == ADMIN_USERNAME:
+        raise HTTPException(400, "Cannot delete the root admin (use disable instead)")
+    r = await db.admin_users.delete_one({"username": username})
+    await _audit_log(admin["username"], "admin.user.delete",
+                     target=username, ip=_client_ip(request))
+    return {"ok": True, "deleted": r.deleted_count}
+
+
+@api.get("/admin/audit")
+async def list_audit(limit: int = 100, request: Request = None,
+                     admin_token: Optional[str] = Cookie(None),
+                     authorization: Optional[str] = Header(None)):
+    admin = await _require_admin_jwt(request, admin_token, authorization)
+    limit = max(1, min(limit, 500))
+    rows = await db.admin_audit.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    return rows
+
+
+# ============================================================================
+# ADMIN ANALYTICS
+# ============================================================================
+@api.get("/admin/analytics")
+async def admin_analytics(request: Request,
+                          admin_token: Optional[str] = Cookie(None),
+                          authorization: Optional[str] = Header(None)):
+    """Big-picture dashboard: users, subscriptions, revenue, jobs."""
+    admin = await _require_admin_jwt(request, admin_token, authorization)
+    now = datetime.now(timezone.utc)
+    week_ago = (now - timedelta(days=7)).isoformat()
+    month_ago = (now - timedelta(days=30)).isoformat()
+
+    users_total = await db.users.count_documents({})
+    customers = await db.users.count_documents({"role": "customer"})
+    handymen = await db.users.count_documents({"role": "handyman"})
+    new_users_week = await db.users.count_documents({"created_at": {"$gte": week_ago}})
+
+    subs_total = await db.subscriptions.count_documents({})
+    subs_active = await db.subscriptions.count_documents({"status": {"$in": ["trialing", "active"]}})
+    subs_trialing = await db.subscriptions.count_documents({"status": "trialing"})
+    subs_past_due = await db.subscriptions.count_documents({"status": "past_due"})
+    subs_canceled = await db.subscriptions.count_documents({"status": "canceled"})
+
+    # Revenue from paid one-time payments (in cents)
+    paid_pipeline = [
+        {"$match": {"payment_status": "paid"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}},
+    ]
+    paid = await db.payment_transactions.aggregate(paid_pipeline).to_list(1)
+    onetime_revenue_cents = paid[0]["total"] if paid else 0
+    onetime_paid_count = paid[0]["count"] if paid else 0
+
+    # Estimated MRR (approx): sum of monthly amounts for active/trialing subs
+    subs_mrr_cents = subs_active * 4900  # handyman_pro_monthly
+
+    # Jobs
+    jobs_total = await db.jobs.count_documents({})
+    jobs_paid = await db.jobs.count_documents({"status": "paid"})
+    jobs_week = await db.jobs.count_documents({"created_at": {"$gte": week_ago}})
+    jobs_month = await db.jobs.count_documents({"created_at": {"$gte": month_ago}})
+
+    # Pending licenses
+    pending_licenses = await db.handyman_profiles.count_documents({"verification_status": "pending"})
+
+    # Referral counts
+    referrals_total = await db.referral_events.count_documents({})
+    referred_users = await db.users.count_documents({"referred_by": {"$exists": True, "$ne": None}})
+
+    return {
+        "users": {
+            "total": users_total, "customers": customers, "handymen": handymen,
+            "new_this_week": new_users_week,
+        },
+        "subscriptions": {
+            "total": subs_total, "active": subs_active, "trialing": subs_trialing,
+            "past_due": subs_past_due, "canceled": subs_canceled,
+            "estimated_mrr_cents": subs_mrr_cents,
+        },
+        "revenue": {
+            "onetime_cents": onetime_revenue_cents,
+            "onetime_count": onetime_paid_count,
+            "mrr_cents": subs_mrr_cents,
+            "total_all_time_cents": onetime_revenue_cents,
+        },
+        "jobs": {
+            "total": jobs_total, "paid": jobs_paid,
+            "this_week": jobs_week, "this_month": jobs_month,
+        },
+        "referrals": {
+            "total_events": referrals_total,
+            "referred_users": referred_users,
+        },
+        "pending_licenses": pending_licenses,
+    }
+
+
 @api.get("/admin/me")
-async def admin_me(session_token: Optional[str] = Cookie(None),
+async def admin_me(admin_token: Optional[str] = Cookie(None),
                    authorization: Optional[str] = Header(None)):
-    user = await get_current_user(session_token, authorization)
-    admin_emails = [e.strip().lower() for e in
-                    (os.environ.get("ADMIN_EMAILS") or "demo.customer@craftpulse.ai").split(",")]
-    is_admin = bool(user.get("is_admin")) or (user.get("email") or "").lower() in admin_emails
-    return {"is_admin": is_admin, "email": user.get("email")}
+    """Return the current admin identity — used by the frontend Navbar guard.
+
+    Returns {is_admin: false} instead of 401 so the Navbar can render for
+    non-admins without noisy 401s.
+    """
+    token = admin_token
+    if not token and authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    if not token:
+        return {"is_admin": False}
+    try:
+        p = _admin_decode_token(token)
+        if p.get("role") == "admin" and p.get("sub") == ADMIN_USERNAME:
+            return {"is_admin": True, "username": p["sub"]}
+    except pyjwt.PyJWTError:
+        pass
+    return {"is_admin": False}
 
 
 @api.get("/admin/pending-craftsmen")
 async def list_pending(status: Optional[str] = "pending",
-                       session_token: Optional[str] = Cookie(None),
+                       admin: dict = None,
+                       request: Request = None,
+                       admin_token: Optional[str] = Cookie(None),
                        authorization: Optional[str] = Header(None)):
-    user = await get_current_user(session_token, authorization)
-    await _require_admin(user)
+    admin = await _require_admin_jwt(request, admin_token, authorization)
     q = {"verification_status": status} if status else {}
     profiles = await db.handyman_profiles.find(q, {"_id": 0}).to_list(200)
     user_ids = [p["user_id"] for p in profiles]
@@ -550,56 +1098,62 @@ async def list_pending(status: Optional[str] = "pending",
 
 @api.post("/admin/approve/{user_id}")
 async def approve_craftsman(user_id: str,
-                            session_token: Optional[str] = Cookie(None),
+                            request: Request = None,
+                            admin_token: Optional[str] = Cookie(None),
                             authorization: Optional[str] = Header(None)):
-    user = await get_current_user(session_token, authorization)
-    await _require_admin(user)
+    admin = await _require_admin_jwt(request, admin_token, authorization)
     now = datetime.now(timezone.utc).isoformat()
     r = await db.handyman_profiles.update_one(
         {"user_id": user_id},
         {"$set": {"verification_status": "approved", "verified": True,
-                  "verified_at": now, "verified_by": user["email"],
+                  "verified_at": now, "verified_by": admin["username"],
                   "rejection_reason": None}},
     )
     if r.matched_count == 0:
         raise HTTPException(404, "Craftsman not found")
+    await _audit_log(admin["username"], "handyman.approve", target=user_id, ip=_client_ip(request))
     return await db.handyman_profiles.find_one({"user_id": user_id}, {"_id": 0})
 
 
 @api.post("/admin/approve-bulk")
 async def approve_bulk(payload: BulkApprovePayload,
-                       session_token: Optional[str] = Cookie(None),
+                       request: Request = None,
+                       admin_token: Optional[str] = Cookie(None),
                        authorization: Optional[str] = Header(None)):
-    user = await get_current_user(session_token, authorization)
-    await _require_admin(user)
+    admin = await _require_admin_jwt(request, admin_token, authorization)
     if not payload.user_ids:
         return {"approved": 0, "matched": 0}
     now = datetime.now(timezone.utc).isoformat()
     r = await db.handyman_profiles.update_many(
         {"user_id": {"$in": payload.user_ids}},
         {"$set": {"verification_status": "approved", "verified": True,
-                  "verified_at": now, "verified_by": user["email"],
+                  "verified_at": now, "verified_by": admin["username"],
                   "rejection_reason": None}},
     )
+    await _audit_log(admin["username"], "handyman.approve_bulk",
+                     metadata={"count": r.modified_count, "user_ids": payload.user_ids},
+                     ip=_client_ip(request))
     return {"approved": r.modified_count, "matched": r.matched_count,
             "user_ids": payload.user_ids}
 
 
 @api.post("/admin/reject/{user_id}")
 async def reject_craftsman(user_id: str, payload: RejectPayload,
-                           session_token: Optional[str] = Cookie(None),
+                           request: Request = None,
+                           admin_token: Optional[str] = Cookie(None),
                            authorization: Optional[str] = Header(None)):
-    user = await get_current_user(session_token, authorization)
-    await _require_admin(user)
+    admin = await _require_admin_jwt(request, admin_token, authorization)
     now = datetime.now(timezone.utc).isoformat()
     r = await db.handyman_profiles.update_one(
         {"user_id": user_id},
         {"$set": {"verification_status": "rejected", "verified": False,
                   "rejection_reason": (payload.reason or "")[:400],
-                  "reviewed_at": now, "reviewed_by": user["email"]}},
+                  "reviewed_at": now, "reviewed_by": admin["username"]}},
     )
     if r.matched_count == 0:
         raise HTTPException(404, "Craftsman not found")
+    await _audit_log(admin["username"], "handyman.reject",
+                     target=user_id, metadata={"reason": payload.reason or ""}, ip=_client_ip(request))
     return await db.handyman_profiles.find_one({"user_id": user_id}, {"_id": 0})
 
 
@@ -1426,6 +1980,7 @@ async def create_checkout(req: CheckoutRequest):
     kwargs = dict(
         line_items=[{"price": price.id, "quantity": 1}],
         mode="payment",
+        allow_promotion_codes=True,
         success_url=f"{req.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=f"{req.origin_url}/payment/cancel",
         metadata={
@@ -1511,6 +2066,26 @@ async def stripe_webhook(request: Request):
             job = await db.jobs.find_one({"job_id": md["job_id"]}, {"_id": 0})
             if job and job.get("customer_id"):
                 await _award_referral_credit(job["customer_id"], trigger="first_paid_job")
+                # Send booking confirmation email (fire-and-forget)
+                try:
+                    customer = await db.users.find_one({"user_id": job["customer_id"]}, {"_id": 0})
+                    handyman = None
+                    if md.get("handyman_id"):
+                        handyman = await db.users.find_one({"user_id": md["handyman_id"]}, {"_id": 0})
+                    if customer and customer.get("email"):
+                        frontend = os.environ.get("FRONTEND_URL", "https://fixit-ai-6.preview.emergentagent.com")
+                        subj, html = tpl_booking_confirmed(
+                            customer_name=customer.get("name") or "there",
+                            job_title=job.get("title") or job.get("category", "your job"),
+                            handyman_name=(handyman or {}).get("name") or "your assigned pro",
+                            amount_cents=int(obj.get("amount_total") or 0),
+                            dashboard_url=f"{frontend}/dashboard",
+                        )
+                        asyncio.get_event_loop().create_task(
+                            send_email(to=customer["email"], subject=subj, html=html)
+                        )
+                except Exception as exc:
+                    logger.warning("Booking email hook failed: %s", exc)
         # Subscription checkout: fetch and sync
         if obj.get("mode") == "subscription" and obj.get("subscription"):
             try:
@@ -1524,17 +2099,45 @@ async def stripe_webhook(request: Request):
                 logger.warning("Sub sync on checkout.completed failed: %s", exc)
     elif t in ("customer.subscription.created",
                "customer.subscription.updated",
-               "customer.subscription.deleted",
-               "customer.subscription.trial_will_end"):
+               "customer.subscription.deleted"):
         user_id = (obj.get("metadata") or {}).get("user_id")
         if not user_id:
-            # Look up by customer_id
             existing = await db.subscriptions.find_one(
                 {"stripe_customer_id": obj.get("customer")}, {"_id": 0}
             )
             user_id = existing and existing.get("user_id")
         if user_id:
             await _sync_subscription(user_id, obj)
+    elif t == "customer.subscription.trial_will_end":
+        # Fires ~3 days before trial ends. Send heads-up email.
+        cust_id = obj.get("customer")
+        trial_end = obj.get("trial_end")
+        existing = await db.subscriptions.find_one({"stripe_customer_id": cust_id}, {"_id": 0})
+        user_id = existing and existing.get("user_id")
+        if user_id:
+            await _sync_subscription(user_id, obj)
+            try:
+                user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+                if user and user.get("email"):
+                    days_left = 3
+                    if trial_end:
+                        delta = datetime.fromtimestamp(trial_end, tz=timezone.utc) - datetime.now(timezone.utc)
+                        days_left = max(1, int(delta.total_seconds() // 86400) + 1)
+                    portal = stripe.billing_portal.Session.create(
+                        customer=cust_id,
+                        return_url=os.environ.get("FRONTEND_URL", "https://fixit-ai-6.preview.emergentagent.com") + "/handyman",
+                    )
+                    subj, html = tpl_trial_ending(
+                        customer_name=user.get("name") or "there",
+                        days_left=days_left,
+                        monthly_amount_cents=4900,
+                        portal_url=portal.url,
+                    )
+                    asyncio.get_event_loop().create_task(
+                        send_email(to=user["email"], subject=subj, html=html)
+                    )
+            except Exception as exc:
+                logger.warning("Trial-ending email hook failed: %s", exc)
     elif t == "invoice.payment_failed":
         cust = obj.get("customer")
         existing = await db.subscriptions.find_one({"stripe_customer_id": cust}, {"_id": 0})
@@ -1544,6 +2147,23 @@ async def stripe_webhook(request: Request):
                 {"$set": {"status": "past_due",
                           "updated_at": datetime.now(timezone.utc).isoformat()}},
             )
+            # Dunning email
+            try:
+                user = await db.users.find_one({"user_id": existing["user_id"]}, {"_id": 0})
+                if user and user.get("email"):
+                    portal = stripe.billing_portal.Session.create(
+                        customer=cust,
+                        return_url=os.environ.get("FRONTEND_URL", "https://fixit-ai-6.preview.emergentagent.com") + "/handyman",
+                    )
+                    subj, html = tpl_payment_failed(
+                        customer_name=user.get("name") or "there",
+                        portal_url=portal.url,
+                    )
+                    asyncio.get_event_loop().create_task(
+                        send_email(to=user["email"], subject=subj, html=html)
+                    )
+            except Exception as exc:
+                logger.warning("Payment-failed email hook failed: %s", exc)
     return {"status": "ok"}
 
 
@@ -1879,6 +2499,7 @@ async def sub_checkout(req: SubCheckoutRequest,
             "trial_period_days": TRIAL_DAYS,
             "metadata": {"user_id": user["user_id"], "plan": "handyman_pro_monthly"},
         },
+        allow_promotion_codes=True,
         # The $1 trial fee: added to the first invoice as a one-off item
         payment_method_collection="always",
         success_url=f"{req.origin_url}/pro/success?session_id={{CHECKOUT_SESSION_ID}}",
@@ -2192,9 +2813,13 @@ async def sitemap_xml(request: Request):
     today = date.today().isoformat()
     all_cats = await categories()
     entries = [
-        (f"{site}/",       "daily",   "1.0"),
-        (f"{site}/login",  "monthly", "0.6"),
-        (f"{site}/blog",   "weekly",  "0.8"),
+        (f"{site}/",         "daily",   "1.0"),
+        (f"{site}/login",    "monthly", "0.6"),
+        (f"{site}/blog",     "weekly",  "0.8"),
+        (f"{site}/live",     "hourly",  "0.9"),
+        (f"{site}/pro",      "weekly",  "0.7"),
+        (f"{site}/terms",    "yearly",  "0.3"),
+        (f"{site}/privacy",  "yearly",  "0.3"),
     ] + [(f"{site}/services/{c['id']}", "weekly", "0.9") for c in all_cats] \
       + [(f"{site}/blog/{c['id']}",     "monthly","0.7") for c in all_cats] \
       + [(f"{site}/authors/{eid}",      "monthly","0.6") for eid in EDITORS.keys()]

@@ -3,5 +3,9 @@ Allow: /
 Disallow: /dashboard
 Disallow: /handyman
 Disallow: /payment/
+Disallow: /admin
+Disallow: /admin/
+Disallow: /pro/success
+Disallow: /r/
 
-Sitemap: https://fixit-ai-6.preview.emergentagent.com/sitemap.xml
+Sitemap: https://fixit-ai-6.preview.emergentagent.com/api/sitemap.xml

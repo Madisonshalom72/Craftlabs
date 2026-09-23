@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import LiveMapPreview from "@/components/LiveMapPreview";
+import useSEO from "@/hooks/useSEO";
 import { http } from "@/lib/api";
 import {
   ArrowRight, Zap, Droplet, Wind, Hammer, Home, Radio, Wrench,
@@ -15,6 +16,11 @@ const CATEGORY_ICONS = {
 };
 
 export default function Landing() {
+  useSEO({
+    title: "CraftPulse AI — NYC handyman marketplace with AI diagnosis",
+    description: "Snap a photo, get an AI-powered repair diagnosis, and book a vetted NYC craftsman in under 60 seconds. Real-time leads, verified pros, and Stripe-secured payments.",
+    canonical: typeof window !== "undefined" ? window.location.origin + "/" : undefined,
+  });
   const [handymen, setHandymen] = useState([]);
   const [categories, setCategories] = useState([]);
 
@@ -215,10 +221,26 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-white/8 py-8">
-        <div className="max-w-7xl mx-auto px-5 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-slate-500 font-mono uppercase tracking-widest">
-          <span>© 2026 CraftPulse AI · Guild Marketplace</span>
-          <span>Made with tools, not templates.</span>
+      <footer className="border-t border-white/8 py-10">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
+            <div>
+              <div className="font-heading font-bold text-lg text-slate-200">CraftPulse<span className="text-amber-400"> AI</span></div>
+              <p className="text-xs text-slate-500 mt-1 max-w-xs">The AI-native handyman marketplace for NYC. Photos in, fixes out.</p>
+            </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <Link to="/blog" data-testid="footer-blog-link" className="text-slate-400 hover:text-amber-400 transition">Field Notes</Link>
+              <Link to="/live" data-testid="footer-live-link" className="text-slate-400 hover:text-amber-400 transition">Live Map</Link>
+              <Link to="/pro" data-testid="footer-pro-link" className="text-slate-400 hover:text-amber-400 transition">Handyman Pro</Link>
+              <Link to="/terms" data-testid="footer-terms-link" className="text-slate-400 hover:text-amber-400 transition">Terms</Link>
+              <Link to="/privacy" data-testid="footer-privacy-link" className="text-slate-400 hover:text-amber-400 transition">Privacy</Link>
+              <Link to="/account/recover" data-testid="footer-recover-link" className="text-slate-400 hover:text-amber-400 transition">Account help</Link>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-6 border-t border-white/5 text-xs text-slate-500 font-mono uppercase tracking-widest">
+            <span>© 2026 CraftPulse AI · Guild Marketplace</span>
+            <span>Made with tools, not templates.</span>
+          </div>
         </div>
       </footer>
     </div>

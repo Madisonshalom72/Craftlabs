@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import Navbar from "@/components/Navbar";
 import { http } from "@/lib/api";
-import { useAuth } from "@/context/AuthContext";
 import {
   ShieldCheck, ShieldAlert, ShieldX, Loader2, CheckCircle2, XCircle,
-  Star, MapPin, Clock, FileText, ArrowRight, Filter, CheckSquare, Square,
+  Star, MapPin, Clock, FileText, ArrowRight, Filter, CheckSquare, Square, LogOut,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,9 +14,10 @@ const TABS = [
 ];
 
 export default function AdminLicenses() {
-  const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [isAdmin, setIsAdmin] = useState(null);
+  const [checking, setChecking] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminUsername, setAdminUsername] = useState("");
   const [tab, setTab] = useState("pending");
   const [rows, setRows] = useState([]);
   const [fetching, setFetching] = useState(false);
@@ -54,16 +53,24 @@ export default function AdminLicenses() {
     finally { setBulkBusy(false); }
   };
 
-  useEffect(() => {
-    if (!loading && !user) navigate("/login");
-  }, [user, loading, navigate]);
+  const logout = async () => {
+    try { await http.post("/admin/logout"); } catch { /* ignore */ }
+    navigate("/admin/login", { replace: true });
+  };
 
   useEffect(() => {
-    if (!user) return;
-    http.get("/admin/me")
-      .then(r => setIsAdmin(!!r.data.is_admin))
-      .catch(() => setIsAdmin(false));
-  }, [user]);
+    http.get("/admin/session")
+      .then(r => {
+        if (r.data.authenticated) {
+          setIsAdmin(true);
+          setAdminUsername(r.data.username || "");
+        } else {
+          navigate("/admin/login", { replace: true });
+        }
+      })
+      .catch(() => navigate("/admin/login", { replace: true }))
+      .finally(() => setChecking(false));
+  }, [navigate]);
 
   const fetchRows = async () => {
     setFetching(true);
@@ -71,7 +78,11 @@ export default function AdminLicenses() {
       const { data } = await http.get(`/admin/pending-craftsmen?status=${tab}`);
       setRows(data);
     } catch (e) {
-      toast.error("Could not load queue");
+      if (e?.response?.status === 401) {
+        navigate("/admin/login", { replace: true });
+      } else {
+        toast.error("Could not load queue");
+      }
     } finally { setFetching(false); }
   };
 
@@ -94,24 +105,42 @@ export default function AdminLicenses() {
     } catch { toast.error("Reject failed"); }
   };
 
-  if (loading || isAdmin === null) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-amber-500" /></div>;
+  if (checking) return <div className="min-h-screen flex items-center justify-center bg-slate-950"><Loader2 className="w-6 h-6 animate-spin text-amber-500" /></div>;
 
   if (!isAdmin) {
-    return (
-      <div className="min-h-screen"><Navbar />
-        <div className="max-w-2xl mx-auto px-5 py-24 text-center">
-          <ShieldX className="w-10 h-10 mx-auto mb-4 text-red-400" />
-          <h1 className="font-heading text-2xl font-bold">Admins only</h1>
-          <p className="text-slate-400 mt-2 text-sm">This page is restricted to CraftPulse editors.</p>
-          <Link to="/" className="mt-6 inline-flex text-amber-400">← Back home</Link>
-        </div>
-      </div>
-    );
+    // Should have redirected; render nothing as a safety net
+    return null;
   }
 
   return (
-    <div className="min-h-screen">
-      <Navbar />
+    <div className="min-h-screen bg-slate-950">
+      {/* Admin-only header (no customer Navbar) */}
+      <div className="sticky top-0 z-40 backdrop-blur-xl bg-slate-950/80 border-b border-white/8">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 h-14 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+              <ShieldCheck className="w-4 h-4 text-slate-900" strokeWidth={2.5} />
+            </div>
+            <div className="leading-none">
+              <div className="font-heading font-bold text-sm">CraftPulse Admin</div>
+              <div className="font-mono text-[9px] uppercase tracking-widest text-amber-400">console</div>
+            </div>
+          </Link>
+          <div className="flex items-center gap-3">
+            <span data-testid="admin-username" className="hidden sm:inline text-xs font-mono text-slate-400">
+              Signed in as <span className="text-amber-300">{adminUsername}</span>
+            </span>
+            <button
+              data-testid="admin-logout-btn"
+              onClick={logout}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 hover:border-red-500/40 text-xs font-medium text-slate-300 hover:text-red-300 transition"
+            >
+              <LogOut className="w-3.5 h-3.5" /> Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-5 lg:px-8 py-8">
         <div className="ai-badge mb-2"><ShieldCheck className="w-3.5 h-3.5" /> Admin Console</div>
         <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight">License Review Queue</h1>

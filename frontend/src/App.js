@@ -15,12 +15,18 @@ import BlogIndex from "@/pages/BlogIndex";
 import BlogArticle from "@/pages/BlogArticle";
 import AuthorPage from "@/pages/AuthorPage";
 import AdminLicenses from "@/pages/AdminLicenses";
+import AdminLogin from "@/pages/AdminLogin";
+import AdminForgot from "@/pages/AdminForgot";
+import AdminDashboard from "@/pages/AdminDashboard";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 import HandymanPro from "@/pages/HandymanPro";
 import ProSuccess from "@/pages/ProSuccess";
 import LiveMap from "@/pages/LiveMap";
 import ReferralLanding from "@/pages/ReferralLanding";
+import TermsOfService from "@/pages/TermsOfService";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import AccountRecover from "@/pages/AccountRecover";
 
 function AppRouter() {
   const location = useLocation();
@@ -34,7 +40,10 @@ function AppRouter() {
       <Route path="/blog" element={<BlogIndex />} />
       <Route path="/blog/:slug" element={<BlogArticle />} />
       <Route path="/authors/:editorId" element={<AuthorPage />} />
+      <Route path="/admin" element={<AdminDashboard />} />
       <Route path="/admin/licenses" element={<AdminLicenses />} />
+      <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/admin/forgot" element={<AdminForgot />} />
       <Route path="/login" element={<Login />} />
       <Route path="/dashboard" element={<CustomerDashboard />} />
       <Route path="/handyman" element={<HandymanDashboard />} />
@@ -42,6 +51,9 @@ function AppRouter() {
       <Route path="/pro/success" element={<ProSuccess />} />
       <Route path="/live" element={<LiveMap />} />
       <Route path="/r/:code" element={<ReferralLanding />} />
+      <Route path="/terms" element={<TermsOfService />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/account/recover" element={<AccountRecover />} />
       <Route path="/payment/success" element={<PaymentSuccess />} />
       <Route path="/payment/cancel" element={<PaymentCancel />} />
     </Routes>
