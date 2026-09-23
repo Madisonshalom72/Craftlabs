@@ -1,0 +1,38 @@
+{
+  "summary": "Iter 7 — Email/password auth (customers + handymen) tested end-to-end alongside existing Google OAuth and Admin JWT. 16/16 backend tests pass. All 4 frontend pages (/login, /forgot, /reset, /verify) render correctly on desktop 1920x1080 and mobile 390x844 with all documented data-testids present and wired to the backend.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/signup", "issue": "Rate-limit deque is shared across signup/login/forgot/resend on the same IP (single _signup_attempts map). A user who mistyped their password 5x then tries to sign up a new account gets 429. Working as designed by spec (5/15min per IP on signup/login/forgot), but a legitimate signup after failed logins is blocked."},
+      {"endpoint": "POST /api/auth/signup", "issue": "_signup_attempts uses deque(maxlen=10) but limit is 5. maxlen=10 is fine (drops oldest silently), just noting the mismatch is intentional."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter7_email_auth.py",
+    "/app/test_reports/pytest/iter7.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 3149 lines — exceeds the 700-line file guideline. Consider splitting auth (Google OAuth + email/password + admin) into modules (e.g., backend/auth/email.py, backend/auth/google.py, backend/auth/admin.py).",
+    "_send_verify_email and _send_password_reset_email default FRONTEND_URL to a hard-coded preview URL — move to a required env var to avoid leaking preview URL into production emails.",
+    "IP-based rate limit uses in-memory _signup_attempts (defaultdict). On multi-worker/multi-pod deploys this is per-worker and easily bypassed. Fine for MVP; document for prod.",
+    "email_verify_tokens and password_reset_tokens have no TTL/unique index on token — add MongoDB indexes: unique on `token`, TTL on `expires_at` to auto-purge stale rows.",
+    "Signup lowercases email server-side (correct), but there is no unique index on users.email — race conditions could allow two accounts with same email.",
+    "`_user_rate_check` is called on `/auth/forgot-password` and `/auth/resend-verification` — these successful hits do NOT record an attempt (only _user_rate_fail on wrong login does). Correct behavior, but signup successes also don't count against the limit, so legitimate signups can't get themselves locked out from signup itself. Fine."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter7_email_auth.py (new)"
+  ],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% (all data-testids present, all flows navigable)"},
+  "test_credentials": "Admin: Appfactory24/Datacap7$ (unchanged, working). Fresh email/pw users created per test using test_<hex>@example.com. Verification tokens pulled directly from db.email_verify_tokens as instructed.",
+  "seed_data_creation": "~10 TEST_ users created in db.users during test run; not cleaned up (safe: unique emails, prefixed).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests live in /app/backend/tests/test_iter7_email_auth.py — run with `python -m pytest backend/tests/test_iter7_email_auth.py -v -o addopts=''` (pytest.ini forces xdist which needs -o addopts='' for single-file runs). All email/pw endpoints (signup, verify, login-email, forgot-password, reset-password, resend-verification, logout) are working. Note: IP-based rate limit is shared across signup/login/forgot for the same IP — if you see unexpected 429s in cascading tests from the same IP, wait 15 min or generate a fresh IP. Regression: Google OAuth /api/auth/session, /api/auth/demo-login, and /api/admin/login all still work.",
+  "rca of the issue": "No blocking issues found. Backend + frontend implementation matches the review request exactly: bcrypt $2b$ hashes stored, unverified login blocked with 403, verify token burns on use, session cookie httpOnly + samesite=none, /auth/me strips password_hash, generic responses on forgot / duplicate signup (no email enumeration), rate limit fires 429 after 5 wrong logins, password reset invalidates all user_sessions and burns token, admin JWT + Google OAuth regression pass."
+}

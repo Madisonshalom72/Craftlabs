@@ -50,6 +50,17 @@
 - Forgot password → token via email + disk log
 - Reset password rewrites `.env` atomically
 
+### Email/Password Auth for Users (2026-02, fifth sprint) — this sprint
+- **Signup + email verification**: `POST /api/auth/signup` creates user with bcrypt hash + `email_verified=false`; sends verify email
+- **Login gated on verification**: 403 with resend prompt until email confirmed
+- **Coexists with Google OAuth**: same `session_token` cookie mechanism → zero downstream changes
+- **Password reset**: forgot → generic response (no enumeration) → email token → set new password → invalidates all sessions
+- **Timing-safe**: bcrypt runs even for non-existent users
+- **Rate limit**: 5 attempts per 15 min per IP across signup/login/forgot
+- **Password hash stripped** from `/auth/me` + login responses
+- **New frontend pages**: `/verify`, `/forgot`, `/reset` + rewired `/login` with Email/Google tabs
+- **Signup upgrade path**: OAuth-only user can set a password to enable email login on the same account
+
 ### Pre-deployment Hardening (2026-02, fourth sprint) — this sprint
 - **Email notifications** via Emergent-managed transactional email: booking confirmed, trial ending, payment failed (dunning), admin reset. Hard guardrail gate on every send (G1-G4). Fallback: on-disk log at `/app/memory/email_log.txt` if key unset.
 - **Customer account recovery** at `/account/recover` (Google OAuth users → Google account recovery, not app-level password)
