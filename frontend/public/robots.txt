@@ -6,6 +6,8 @@ Disallow: /payment/
 Disallow: /admin
 Disallow: /admin/
 Disallow: /pro/success
+Disallow: /verify
+Disallow: /reset
 Disallow: /r/
 
-Sitemap: https://fixit-ai-6.preview.emergentagent.com/api/sitemap.xml
+Sitemap: https://craftpulse.app/api/sitemap.xml

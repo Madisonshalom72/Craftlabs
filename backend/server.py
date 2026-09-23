@@ -487,7 +487,7 @@ async def _issue_user_session(user: dict, response: Response) -> str:
 
 
 async def _send_verify_email(user: dict, token: str) -> None:
-    frontend = os.environ.get("FRONTEND_URL", "https://fixit-ai-6.preview.emergentagent.com")
+    frontend = os.environ["FRONTEND_URL"]
     verify_url = f"{frontend}/verify?token={token}"
     subject = "Verify your CraftPulse email"
     html = (
@@ -505,7 +505,7 @@ async def _send_verify_email(user: dict, token: str) -> None:
 
 
 async def _send_password_reset_email(email: str, token: str, name: str) -> None:
-    frontend = os.environ.get("FRONTEND_URL", "https://fixit-ai-6.preview.emergentagent.com")
+    frontend = os.environ["FRONTEND_URL"]
     reset_url = f"{frontend}/reset?token={token}"
     subject = "Reset your CraftPulse password"
     html = (
@@ -1100,7 +1100,7 @@ async def _email_admin_reset_token(token: str, ip: str) -> None:
     """Called from /admin/forgot handler. Emails the operator's recovery inbox."""
     if not ADMIN_RECOVERY_EMAIL:
         return
-    frontend = os.environ.get("FRONTEND_URL", "https://fixit-ai-6.preview.emergentagent.com")
+    frontend = os.environ["FRONTEND_URL"]
     reset_url = f"{frontend}/admin/forgot?token={token}"
     subject, html = tpl_admin_reset(reset_url=reset_url)
     await send_email(to=ADMIN_RECOVERY_EMAIL, subject=subject, html=html)
@@ -2364,7 +2364,7 @@ async def stripe_webhook(request: Request):
                     if md.get("handyman_id"):
                         handyman = await db.users.find_one({"user_id": md["handyman_id"]}, {"_id": 0})
                     if customer and customer.get("email"):
-                        frontend = os.environ.get("FRONTEND_URL", "https://fixit-ai-6.preview.emergentagent.com")
+                        frontend = os.environ["FRONTEND_URL"]
                         subj, html = tpl_booking_confirmed(
                             customer_name=customer.get("name") or "there",
                             job_title=job.get("title") or job.get("category", "your job"),
@@ -2416,7 +2416,7 @@ async def stripe_webhook(request: Request):
                         days_left = max(1, int(delta.total_seconds() // 86400) + 1)
                     portal = stripe.billing_portal.Session.create(
                         customer=cust_id,
-                        return_url=os.environ.get("FRONTEND_URL", "https://fixit-ai-6.preview.emergentagent.com") + "/handyman",
+                        return_url=os.environ["FRONTEND_URL"] + "/handyman",
                     )
                     subj, html = tpl_trial_ending(
                         customer_name=user.get("name") or "there",
@@ -2444,7 +2444,7 @@ async def stripe_webhook(request: Request):
                 if user and user.get("email"):
                     portal = stripe.billing_portal.Session.create(
                         customer=cust,
-                        return_url=os.environ.get("FRONTEND_URL", "https://fixit-ai-6.preview.emergentagent.com") + "/handyman",
+                        return_url=os.environ["FRONTEND_URL"] + "/handyman",
                     )
                     subj, html = tpl_payment_failed(
                         customer_name=user.get("name") or "there",

@@ -1,5 +1,6 @@
 [
   {
+    "_comment": "Digital Asset Links — proves that ai.craftpulse.twa (the TWA app) is authorized to open https://craftpulse.app URLs without showing the browser bar. AFTER running `bubblewrap fingerprint`, replace REPLACE_WITH_YOUR_ANDROID_APP_SHA256_FINGERPRINT with the SHA-256 line from Bubblewrap's output. Multiple fingerprints are allowed (production keystore + Play App Signing).",
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
