@@ -149,10 +149,10 @@ EDITORS = {
     "marisol-vega": {
         "id": "marisol-vega",
         "name": "Marisol Vega",
-        "title": "Editor-in-Chief · Handy Fix AI",
+        "title": "Editor-in-Chief · Craft Master Labs",
         "credentials": "Former NYC DOB inspector · 22 yrs field experience",
         "picture": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80",
-        "bio": "Marisol spent 14 years as a NYC Department of Buildings plans examiner before joining Handy Fix as Editor-in-Chief. She wrote the internal training manual used by two of the five boroughs' inspection teams and reviews every guide for code accuracy.",
+        "bio": "Marisol spent 14 years as a NYC Department of Buildings plans examiner before joining Craft Master Labs as Editor-in-Chief. She wrote the internal training manual used by two of the five boroughs' inspection teams and reviews every guide for code accuracy.",
         "expertise": ["NYC building code", "Permits & inspections", "Homeowner protection"],
         "linkedin": "https://www.linkedin.com/in/marisol-vega-craftpulse",
     },
@@ -172,7 +172,7 @@ EDITORS = {
         "title": "Structural & Building Systems Editor",
         "credentials": "Licensed Professional Engineer · Columbia SEAS",
         "picture": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80",
-        "bio": "Priya is a licensed Professional Engineer with a structural focus, previously with Thornton Tomasetti. She reviews everything Handy Fix publishes on roofing, load-bearing carpentry, and building envelope for engineering accuracy.",
+        "bio": "Priya is a licensed Professional Engineer with a structural focus, previously with Thornton Tomasetti. She reviews everything Craft Master Labs publishes on roofing, load-bearing carpentry, and building envelope for engineering accuracy.",
         "expertise": ["Roofing", "Structural carpentry", "Building envelope", "Waterproofing"],
         "linkedin": "https://www.linkedin.com/in/priya-shah-pe",
     },
@@ -192,7 +192,7 @@ EDITORS = {
         "title": "Interiors & Craftsmanship Editor",
         "credentials": "Fine finish carpenter · 18 yrs bespoke work",
         "picture": "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80",
-        "bio": "Alicia trained under two of the last hand-cut moulding houses in Long Island City. Her work has been featured in Architectural Digest and Dwell. At Handy Fix she edits everything on carpentry, tile, paint, and staircase work.",
+        "bio": "Alicia trained under two of the last hand-cut moulding houses in Long Island City. Her work has been featured in Architectural Digest and Dwell. At Craft Master Labs she edits everything on carpentry, tile, paint, and staircase work.",
         "expertise": ["Carpentry", "Cabinetry", "Tile & masonry", "Paint & finish", "Stairs"],
         "linkedin": "https://www.linkedin.com/in/alicia-cortez-carpentry",
     },
@@ -494,14 +494,14 @@ async def _issue_user_session(user: dict, response: Response) -> str:
 async def _send_verify_email(user: dict, token: str) -> None:
     frontend = os.environ["FRONTEND_URL"]
     verify_url = f"{frontend}/verify?token={token}"
-    subject = "Verify your Handy Fix email"
+    subject = "Verify your Craft Master Labs email"
     html = (
         f'<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px">'
         f'<tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px">'
         f'<tr><td>'
-        f'<div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">Handy Fix<span style="color:#0F172A"> AI</span></div>'
+        f'<div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">Craft Master Labs<span style="color:#0F172A"> AI</span></div>'
         f'<h1 style="font-size:22px;margin:0 0 10px">Welcome, {escape(user.get("name") or "there")}!</h1>'
-        f'<p style="line-height:1.6">Confirm your email to activate your Handy Fix account. This link expires in 48 hours.</p>'
+        f'<p style="line-height:1.6">Confirm your email to activate your Craft Master Labs account. This link expires in 48 hours.</p>'
         f'<p><a href="{escape(verify_url)}" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600">Verify email</a></p>'
         f'<p style="font-size:12px;color:#6B7280">Didn&rsquo;t create an account? Ignore this email.</p>'
         f'</td></tr></table></td></tr></table>'
@@ -512,14 +512,14 @@ async def _send_verify_email(user: dict, token: str) -> None:
 async def _send_password_reset_email(email: str, token: str, name: str) -> None:
     frontend = os.environ["FRONTEND_URL"]
     reset_url = f"{frontend}/reset?token={token}"
-    subject = "Reset your Handy Fix password"
+    subject = "Reset your Craft Master Labs password"
     html = (
         f'<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px">'
         f'<tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px">'
         f'<tr><td>'
-        f'<div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">Handy Fix<span style="color:#0F172A"> AI</span></div>'
+        f'<div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">Craft Master Labs<span style="color:#0F172A"> AI</span></div>'
         f'<h1 style="font-size:22px;margin:0 0 10px">Reset your password</h1>'
-        f'<p style="line-height:1.6">Hi {escape(name or "there")}, we received a request to reset your Handy Fix password. This link expires in 60 minutes.</p>'
+        f'<p style="line-height:1.6">Hi {escape(name or "there")}, we received a request to reset your Craft Master Labs password. This link expires in 60 minutes.</p>'
         f'<p><a href="{escape(reset_url)}" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600">Set a new password</a></p>'
         f'<p style="font-size:12px;color:#6B7280">If you didn&rsquo;t request this, ignore this email — your password stays unchanged.</p>'
         f'</td></tr></table></td></tr></table>'
@@ -732,7 +732,7 @@ async def set_role(payload: RoleUpdate, session_token: Optional[str] = Cookie(No
                 "hourly_rate": 65, "years_experience": 3,
                 "rating": 5.0, "reviews_count": 0,
                 "skills": ["General Repair"], "service_area": "",
-                "bio": "New craftsman on Handy Fix AI.",
+                "bio": "New craftsman on Craft Master Labs.",
                 "verified": False, "available": True,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             })
@@ -1474,7 +1474,7 @@ def _get_llm(session_id: str, system_message: str):
 async def ai_diagnose(payload: DiagnoseRequest):
     """AI Vision: analyze a photo of a broken item, return structured diagnosis + quote."""
     sys = (
-        "You are Handy Fix AI, an expert home-repair vision diagnostician. "
+        "You are Craft Master Labs, an expert home-repair vision diagnostician. "
         "Analyze the uploaded image of a broken or malfunctioning household item. "
         "Respond ONLY with valid JSON matching this schema: "
         '{"issue": string, "category": one of ["Electrical","Plumbing","HVAC","Carpentry","Roofing","Smart Home","Windows","Doors","Stairs & Railings","Painting","Tile & Masonry","Appliance Repair","Deck & Fencing","Locksmith","General"], '
@@ -1551,7 +1551,7 @@ async def ai_diagnose(payload: DiagnoseRequest):
 async def ai_chat(payload: ChatRequest):
     """Streaming AI repair concierge."""
     sys = (
-        "You are the Handy Fix AI Repair Concierge. You help homeowners scope handyman jobs. "
+        "You are the Craft Master Labs Repair Concierge. You help homeowners scope handyman jobs. "
         "Be concise, friendly, and pragmatic. Ask clarifying questions if needed. "
         "When you have enough info, suggest a service tier: Quick Fix ($75), Standard Repair ($150), "
         "Major Project ($325), or Emergency ($500). Never invent prices outside this range."
@@ -1858,7 +1858,7 @@ async def push_test(session_token: Optional[str] = Cookie(None),
     for s in subs:
         ok = await _send_push(
             {"endpoint": s["endpoint"], "keys": s["keys"]},
-            {"title": "Handy Fix test push", "body": "You're wired up. New AI matches will land here.",
+            {"title": "Craft Master Labs test push", "body": "You're wired up. New AI matches will land here.",
              "icon": "/icon-192.png", "url": "/handyman"},
         )
         if ok: sent += 1
@@ -2123,7 +2123,7 @@ async def _generate_article(slug: str) -> dict:
     working_title = BLOG_TITLES.get(slug, f"Expert guide to {cat['name'].lower()} in NYC")
 
     sys = (
-        "You are a senior editor for Handy Fix AI, a NYC handyman marketplace. "
+        "You are a senior editor for Craft Master Labs, a NYC handyman marketplace. "
         "Write authoritative, specific, non-fluffy expert guides that homeowners actually want to read. "
         "You know NYC building codes, common contractor shortcuts, and how to spot bad work. "
         "Output STRICT JSON only, no markdown fences. Schema: "
@@ -2135,10 +2135,10 @@ async def _generate_article(slug: str) -> dict:
         "  \"sections\": [ {\"heading\": string, \"body\": string (2-4 paragraphs, plain text, no markdown, use \\n\\n between paragraphs)} ] with EXACTLY 5 sections, "
         "  \"key_takeaways\": [string] with 4-5 bullets, "
         "  \"faq\": [ {\"q\": string, \"a\": string} ] with 3 items, "
-        "  \"cta_line\": string (one sentence urging them to book via Handy Fix) }"
+        "  \"cta_line\": string (one sentence urging them to book via Craft Master Labs) }"
     )
     user_prompt = (
-        f"Write the guide '{working_title}' for the Handy Fix AI '{cat['name']}' niche. "
+        f"Write the guide '{working_title}' for the Craft Master Labs '{cat['name']}' niche. "
         f"Target long-tail SEO keywords: {kw}. "
         f"Audience: NYC homeowners. Tone: sharp, opinionated, expert. "
         f"Include specific brand names, price ranges (USD), NYC-specific code references where relevant. "
@@ -2175,7 +2175,7 @@ async def _generate_article(slug: str) -> dict:
             "sections": [],
             "key_takeaways": [],
             "faq": [],
-            "cta_line": f"Book a vetted {cat['name']} pro on Handy Fix AI.",
+            "cta_line": f"Book a vetted {cat['name']} pro on Craft Master Labs.",
         }
     return data
 
@@ -2479,7 +2479,7 @@ CATEGORY_CONTENT = {
         "hero_sub": "IBEW-certified pros for outlets, panels, EV chargers, and smart-home rewiring across all five boroughs.",
         "keywords": ["electrical repair NYC", "electrician near me", "outlet installation", "EV charger installer"],
         "faq": [
-            {"q": "Are all your electricians licensed?", "a": "Every electrician on Handy Fix holds an NYC master or journeyman license and current liability insurance, verified before onboarding."},
+            {"q": "Are all your electricians licensed?", "a": "Every electrician on Craft Master Labs holds an NYC master or journeyman license and current liability insurance, verified before onboarding."},
             {"q": "How fast can I get someone for a sparking outlet?", "a": "Emergency electrical work usually gets a same-day dispatch. The AI flags critical severity and pushes it to available pros within minutes."},
             {"q": "Do you install Tesla Wall Connectors?", "a": "Yes — several of our master electricians are Tesla-certified for Wall Connector and Universal installs."},
         ],
@@ -2490,7 +2490,7 @@ CATEGORY_CONTENT = {
         "hero_sub": "Licensed plumbers for leaks, water heaters, radiant heat, and pipe repairs — with real-time price estimates.",
         "keywords": ["emergency plumber NYC", "leak repair", "water heater install", "tankless heater NYC"],
         "faq": [
-            {"q": "Can you handle a burst pipe right now?", "a": "Yes. Snap a photo, and Handy Fix AI dispatches the nearest available licensed plumber with an ETA under an hour in most boroughs."},
+            {"q": "Can you handle a burst pipe right now?", "a": "Yes. Snap a photo, and Craft Master Labs dispatches the nearest available licensed plumber with an ETA under an hour in most boroughs."},
             {"q": "Do you replace tankless water heaters?", "a": "We have specialists for Rinnai, Navien, and Rheem tankless installs, including gas line upgrades where needed."},
         ],
     },
@@ -2689,7 +2689,7 @@ async def tiers():
 
 @api.get("/")
 async def root():
-    return {"service": "Handy Fix AI API", "status": "ok"}
+    return {"service": "Craft Master Labs API", "status": "ok"}
 
 
 # ============================================================================
@@ -3528,7 +3528,7 @@ async def ai_gemini_chat(
         raise HTTPException(400, "Prompt too short")
     if len(prompt) > 4000:
         raise HTTPException(400, "Prompt must be under 4000 characters")
-    system = payload.system or "You are Handy Fix AI, a concise expert home-repair assistant."
+    system = payload.system or "You are Craft Master Labs, a concise expert home-repair assistant."
     try:
         text = await gemini_text(prompt, system=system, session_id=payload.session_id or f"user-{user['user_id']}")
     except Exception as exc:

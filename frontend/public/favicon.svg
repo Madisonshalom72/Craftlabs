@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="cml-body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <linearGradient id="cml-tip" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#FDE68A"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="64" height="64" rx="16" fill="#0B0F14"/>
+  <g transform="translate(4 4)">
+    <path d="M14 42 L34 22 L44 32 L24 52 Z" fill="url(#cml-body)"/>
+    <path d="M34 22 L44 32 L47 29 L37 19 Z" fill="url(#cml-tip)"/>
+    <rect x="8" y="46" width="10" height="8" rx="2" transform="rotate(-45 13 50)" fill="#7C2D12"/>
+    <g fill="none" stroke="#B7FF3A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M47 29 L52 24 L52 14 L42 14"/>
+      <path d="M42 14 L38 10"/>
+    </g>
+    <circle cx="52" cy="14" r="2" fill="#B7FF3A"/>
+    <circle cx="42" cy="14" r="2" fill="#B7FF3A"/>
+    <circle cx="38" cy="10" r="1.5" fill="#B7FF3A"/>
+  </g>
+</svg>

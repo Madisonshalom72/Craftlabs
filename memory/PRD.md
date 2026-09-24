@@ -1,4 +1,4 @@
-# Handy Fix AI - Product Requirements Document
+# Craft Master Labs - Product Requirements Document
 
 ## Original Problem Statement
 > Need a handyman market place run by ai

@@ -4,8 +4,8 @@ import { FileText } from "lucide-react";
 
 export default function TermsOfService() {
   useSEO({
-    title: "Terms of Service — Handy Fix AI",
-    description: "The rules of the road for using Handy Fix AI's handyman marketplace, subscription services, and payments.",
+    title: "Terms of Service — Craft Master Labs",
+    description: "The rules of the road for using Craft Master Labs's handyman marketplace, subscription services, and payments.",
   });
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -18,15 +18,15 @@ export default function TermsOfService() {
         <div className="prose prose-invert prose-slate max-w-none space-y-6 text-slate-300">
           <section>
             <h2 className="font-heading text-2xl font-bold text-white">1. Who we are</h2>
-            <p>Handy Fix AI (&ldquo;Handy Fix&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) is an AI-assisted marketplace connecting homeowners with independent local craftsmen. By creating an account, posting a job, or providing services through Handy Fix, you agree to these Terms.</p>
+            <p>Craft Master Labs (&ldquo;Craft Master Labs&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) is an AI-assisted marketplace connecting homeowners with independent local craftsmen. By creating an account, posting a job, or providing services through Craft Master Labs, you agree to these Terms.</p>
           </section>
           <section>
             <h2 className="font-heading text-2xl font-bold text-white">2. Marketplace role</h2>
-            <p>Handy Fix is a technology platform. We are not a party to the service agreement between homeowners and craftsmen, and we do not perform the physical work ourselves. Craftsmen operate as independent contractors and are solely responsible for the quality, safety, licensing, insurance, and legality of the services they provide.</p>
+            <p>Craft Master Labs is a technology platform. We are not a party to the service agreement between homeowners and craftsmen, and we do not perform the physical work ourselves. Craftsmen operate as independent contractors and are solely responsible for the quality, safety, licensing, insurance, and legality of the services they provide.</p>
           </section>
           <section>
             <h2 className="font-heading text-2xl font-bold text-white">3. Accounts</h2>
-            <p>You must be at least 18 to use Handy Fix. Sign-in is provided via Google OAuth. You are responsible for the security of the Google account linked to your Handy Fix profile. You may not create accounts using automated means or misrepresent your identity.</p>
+            <p>You must be at least 18 to use Craft Master Labs. Sign-in is provided via Google OAuth. You are responsible for the security of the Google account linked to your Craft Master Labs profile. You may not create accounts using automated means or misrepresent your identity.</p>
           </section>
           <section>
             <h2 className="font-heading text-2xl font-bold text-white">4. Payments</h2>
@@ -55,7 +55,7 @@ export default function TermsOfService() {
           </section>
           <section>
             <h2 className="font-heading text-2xl font-bold text-white">9. Limitation of liability</h2>
-            <p>To the maximum extent permitted by law, Handy Fix is not liable for indirect, incidental, or consequential damages. Our total liability for any claim is limited to the fees you paid us in the 90 days preceding the claim.</p>
+            <p>To the maximum extent permitted by law, Craft Master Labs is not liable for indirect, incidental, or consequential damages. Our total liability for any claim is limited to the fees you paid us in the 90 days preceding the claim.</p>
           </section>
           <section>
             <h2 className="font-heading text-2xl font-bold text-white">10. Changes</h2>

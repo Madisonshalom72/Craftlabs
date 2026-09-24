@@ -1,4 +1,4 @@
-# Handy Fix AI — Google Play Store Listing Content
+# Craft Master Labs — Google Play Store Listing Content
 
 Copy-paste these fields directly into Play Console → Store presence → Main store listing.
 
@@ -6,7 +6,7 @@ Copy-paste these fields directly into Play Console → Store presence → Main s
 
 ## App name (30 char max)
 ```
-Handy Fix AI — Handyman
+Craft Master Labs — Handyman
 ```
 *(28 chars, ✓)*
 
@@ -19,7 +19,7 @@ Snap a photo. AI diagnoses the fix. Book a vetted NYC craftsman in under a minut
 ## Full description (4000 char max)
 
 ```
-Handy Fix AI turns a photo into a booked repair.
+Craft Master Labs turns a photo into a booked repair.
 
 Broken outlet? Cracked tile? Leaky faucet? Take one picture with your phone. Our AI (Claude Sonnet vision) reads the photo, identifies the exact problem with a labeled bounding box, estimates the price range, and matches you with a vetted NYC craftsman in seconds — with Stripe-backed escrow payments and a $25 signup credit for your friends.
 
@@ -34,7 +34,7 @@ No more Googling "why is my ceiling leaking". Snap → analyze → know the fix.
 Our neural ranker weighs skills, distance, rating, and rate to surface the top three pros for YOUR job.
 
 🛡️ VERIFIED CRAFTSMEN
-Every craftsman on Handy Fix passes a license check. Look for the verified badge on every profile.
+Every craftsman on Craft Master Labs passes a license check. Look for the verified badge on every profile.
 
 💳 ESCROW-PROTECTED PAYMENTS
 Pay when you book. Your money is held safely until the job is done to your satisfaction.
@@ -89,7 +89,7 @@ Contact: loans24funding@gmail.com
 ## Store listing contact details
 - **Website**: `https://craftpulse.app`
 - **Email**: `loans24funding@gmail.com`
-- **External marketing name**: `Handy Fix AI`
+- **External marketing name**: `Craft Master Labs`
 
 ---
 
@@ -154,7 +154,7 @@ Format: 1080×2400 PNG or JPEG. Minimum 2, recommended 6-8.
 
 Suggested composition:
 - Dark background matching the app (slate-950)
-- Big amber "Handy Fix AI" wordmark left-aligned
+- Big amber "Craft Master Labs" wordmark left-aligned
 - On the right: a phone mockup showing the AI-diagnosed photo with bounding box
 - Tagline overlay: "Fix your home in one photo."
 

@@ -54,6 +54,16 @@ module.exports = {
           '3': 'hsl(var(--chart-3))',
           '4': 'hsl(var(--chart-4))',
           '5': 'hsl(var(--chart-5))'
+        },
+        craft: {
+          graphite: '#0B0F14',   // deep base surface
+          slate: '#141B24',       // elevated surface / cards
+          fog: '#94A3B8',         // muted text / subtle borders
+          amber: '#F59E0B',       // primary heat — CTAs, hover peaks
+          ember: '#B45309',       // amber pressed / low-emphasis heat
+          lime: '#B7FF3A',        // lab-lime — scan lines, active AI states
+          cyan: '#22D3EE',        // secondary scanline / diagnostic accents
+          ink: '#E5E7EB'          // primary foreground on graphite
         }
       },
       keyframes: {
@@ -72,11 +82,31 @@ module.exports = {
           to: {
             height: '0'
           }
+        },
+        'scanline': {
+          '0%': { transform: 'translateY(-100%)' },
+          '100%': { transform: 'translateY(200%)' }
+        },
+        'grid-pulse': {
+          '0%,100%': { opacity: '0.15' },
+          '50%': { opacity: '0.45' }
+        },
+        'label-in': {
+          '0%': { opacity: '0', transform: 'translate(-8px,-8px) scale(0.9)' },
+          '100%': { opacity: '1', transform: 'translate(0,0) scale(1)' }
+        },
+        'wire-draw': {
+          '0%': { strokeDashoffset: '400' },
+          '100%': { strokeDashoffset: '0' }
         }
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out'
+        'accordion-up': 'accordion-up 0.2s ease-out',
+        'scanline': 'scanline 3.2s ease-in-out infinite',
+        'grid-pulse': 'grid-pulse 2.4s ease-in-out infinite',
+        'label-in': 'label-in 400ms cubic-bezier(.16,1,.3,1) both',
+        'wire-draw': 'wire-draw 1.8s ease-out forwards'
       }
     }
   },

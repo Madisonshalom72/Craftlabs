@@ -30,6 +30,7 @@ import AccountRecover from "@/pages/AccountRecover";
 import VerifyEmail from "@/pages/VerifyEmail";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
+import Brand from "@/pages/Brand";
 
 function AppRouter() {
   const location = useLocation();
@@ -62,6 +63,7 @@ function AppRouter() {
       <Route path="/reset" element={<ResetPassword />} />
       <Route path="/payment/success" element={<PaymentSuccess />} />
       <Route path="/payment/cancel" element={<PaymentCancel />} />
+      <Route path="/brand" element={<Brand />} />
     </Routes>
   );
 }

@@ -66,7 +66,7 @@ export default function BlogArticle() {
   // SEO metadata
   useEffect(() => {
     if (!article) return;
-    document.title = `${article.title} · Handy Fix AI`;
+    document.title = `${article.title} · Craft Master Labs`;
     let m = document.querySelector('meta[name="description"]');
     if (!m) { m = document.createElement("meta"); m.name = "description"; document.head.appendChild(m); }
     m.content = (article.meta_description || article.subtitle || "").slice(0, 300);
@@ -85,7 +85,7 @@ export default function BlogArticle() {
       "knowsAbout": b.author.expertise,
       "sameAs": b.author.linkedin ? [b.author.linkedin] : [],
       "url": `${window.location.origin}/authors/${b.author.id}`,
-    } : { "@type": "Organization", "name": "Handy Fix AI" };
+    } : { "@type": "Organization", "name": "Craft Master Labs" };
     const reviewedByObj = b.reviewer ? {
       "@type": "Person",
       "name": b.reviewer.name,
@@ -100,7 +100,7 @@ export default function BlogArticle() {
       "author": authorObj,
       "reviewedBy": reviewedByObj,
       "datePublished": article.created_at,
-      "publisher": { "@type": "Organization", "name": "Handy Fix AI" },
+      "publisher": { "@type": "Organization", "name": "Craft Master Labs" },
       "keywords": (article.keywords || []).join(", "),
     };
     const s = document.createElement("script");
@@ -108,7 +108,7 @@ export default function BlogArticle() {
     s.id = "blog-jsonld";
     s.textContent = JSON.stringify(jsonld);
     document.head.appendChild(s);
-    return () => { document.title = "Handy Fix AI"; };
+    return () => { document.title = "Craft Master Labs"; };
   }, [article]);
 
   if (status === "loading" || status === "generating") {
@@ -287,7 +287,7 @@ export default function BlogArticle() {
 
       <footer className="border-t border-white/8 py-8">
         <div className="max-w-7xl mx-auto px-5 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-slate-500 font-mono uppercase tracking-widest">
-          <span>© 2026 Handy Fix AI · Field Notes</span>
+          <span>© 2026 Craft Master Labs · Field Notes</span>
           <Link to="/blog" className="hover:text-amber-400 transition">More guides →</Link>
         </div>
       </footer>

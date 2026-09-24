@@ -1,4 +1,4 @@
-"""Create Stripe catalog for Handy Fix AI service tiers."""
+"""Create Stripe catalog for Craft Master Labs service tiers."""
 import os
 import stripe
 from dotenv import load_dotenv

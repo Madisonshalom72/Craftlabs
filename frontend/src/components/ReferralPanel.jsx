@@ -14,7 +14,7 @@ export default function ReferralPanel() {
   if (!data) return null;
 
   const shareUrl = `${window.location.origin}/r/${data.code}`;
-  const shareText = `I'm using Handy Fix AI for NYC handyman work — snap a photo and their AI diagnoses the fix. Use my link to get $${(data.reward_cents / 100).toFixed(0)} credit: ${shareUrl}`;
+  const shareText = `I'm using Craft Master Labs for NYC handyman work — snap a photo and their AI diagnoses the fix. Use my link to get $${(data.reward_cents / 100).toFixed(0)} credit: ${shareUrl}`;
 
   const copy = async (text) => {
     try {

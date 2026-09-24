@@ -1,4 +1,4 @@
-"""Handy Fix email sender — Emergent-managed transactional email.
+"""Craft Master Labs email sender — Emergent-managed transactional email.
 
 Guardrails enforced:
 - G1: from_name is always this app's own brand (never impersonate a third party)
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Emergent managed email proxy — CONSTANT (not read from env)
 EMAIL_BASE_URL = "https://integrations.emergentagent.com"
 EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY", "")
-EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "Handy Fix AI")
+EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "Craft Master Labs")
 EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
 EMAIL_LOG_PATH = Path("/app/memory/email_log.txt")
 
@@ -155,7 +155,7 @@ def _fire_and_forget(coro):
 _STYLE = 'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#1F2937;background:#F8FAFC'
 _FOOTER = (
     '<p style="font-size:11px;color:#9CA3AF;margin-top:24px;line-height:1.5">'
-    'Sent by Handy Fix AI. We never ask for your password or card details by email. '
+    'Sent by Craft Master Labs. We never ask for your password or card details by email. '
     'If you did not expect this, ignore it or reply to reach us.'
     '</p>'
 )
@@ -167,7 +167,7 @@ def _wrap(body_html: str) -> str:
         f'<tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" '
         f'style="background:#ffffff;border-radius:14px;padding:28px 32px;box-shadow:0 2px 10px rgba(0,0,0,0.05)">'
         f'<tr><td>'
-        f'<div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px;letter-spacing:-0.2px">Handy Fix<span style="color:#0F172A;font-weight:600"> AI</span></div>'
+        f'<div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px;letter-spacing:-0.2px">Craft Master Labs<span style="color:#0F172A;font-weight:600"> AI</span></div>'
         f'{body_html}'
         f'{_FOOTER}'
         f'</td></tr></table></td></tr></table>'
@@ -177,7 +177,7 @@ def _wrap(body_html: str) -> str:
 def tpl_booking_confirmed(*, customer_name: str, job_title: str,
                           handyman_name: str, amount_cents: int,
                           dashboard_url: str) -> tuple[str, str]:
-    subject = f"Your Handy Fix booking is confirmed — {job_title}"
+    subject = f"Your Craft Master Labs booking is confirmed — {job_title}"
     html = _wrap(
         f'<h1 style="font-size:22px;margin:0 0 10px">Booking confirmed 🛠️</h1>'
         f'<p style="line-height:1.6">Hi {escape(customer_name)}, your job <strong>{escape(job_title)}</strong> is on the calendar.</p>'
@@ -193,10 +193,10 @@ def tpl_booking_confirmed(*, customer_name: str, job_title: str,
 
 
 def tpl_payment_failed(*, customer_name: str, portal_url: str) -> tuple[str, str]:
-    subject = "Action needed — your Handy Fix payment failed"
+    subject = "Action needed — your Craft Master Labs payment failed"
     html = _wrap(
         f'<h1 style="font-size:22px;margin:0 0 10px;color:#B91C1C">Payment failed</h1>'
-        f'<p style="line-height:1.6">Hi {escape(customer_name)}, Stripe couldn&rsquo;t charge the card on file for your last Handy Fix invoice. Common causes: expired card, insufficient funds, or the bank flagged the charge.</p>'
+        f'<p style="line-height:1.6">Hi {escape(customer_name)}, Stripe couldn&rsquo;t charge the card on file for your last Craft Master Labs invoice. Common causes: expired card, insufficient funds, or the bank flagged the charge.</p>'
         f'<p style="line-height:1.6">To keep your access active, please update your card in the billing portal — takes 30 seconds:</p>'
         f'<p><a href="{escape(portal_url)}" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600">Update card</a></p>'
         f'<p style="line-height:1.6;font-size:13px;color:#6B7280">Stripe will automatically retry the charge over the next 3 days. If it still fails, your subscription will be paused.</p>'
@@ -206,10 +206,10 @@ def tpl_payment_failed(*, customer_name: str, portal_url: str) -> tuple[str, str
 
 def tpl_trial_ending(*, customer_name: str, days_left: int,
                      monthly_amount_cents: int, portal_url: str) -> tuple[str, str]:
-    subject = f"Your Handy Fix Pro trial ends in {days_left} day{'s' if days_left != 1 else ''}"
+    subject = f"Your Craft Master Labs Pro trial ends in {days_left} day{'s' if days_left != 1 else ''}"
     html = _wrap(
         f'<h1 style="font-size:22px;margin:0 0 10px">Trial ending soon</h1>'
-        f'<p style="line-height:1.6">Hi {escape(customer_name)}, a heads-up — your $1 Handy Fix Pro trial ends in <strong>{days_left} day{"s" if days_left != 1 else ""}</strong>.</p>'
+        f'<p style="line-height:1.6">Hi {escape(customer_name)}, a heads-up — your $1 Craft Master Labs Pro trial ends in <strong>{days_left} day{"s" if days_left != 1 else ""}</strong>.</p>'
         f'<p style="line-height:1.6">After the trial you&rsquo;ll auto-renew at <strong>${monthly_amount_cents/100:.0f}/month</strong>. No action needed if you want to continue — you&rsquo;ll keep every Pro benefit (real-time leads, smart-match priority, verified badge).</p>'
         f'<p style="line-height:1.6">If you&rsquo;d rather not continue, cancel anytime in the billing portal (takes one click):</p>'
         f'<p><a href="{escape(portal_url)}" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600">Manage subscription</a></p>'
@@ -218,10 +218,10 @@ def tpl_trial_ending(*, customer_name: str, days_left: int,
 
 
 def tpl_admin_reset(*, reset_url: str) -> tuple[str, str]:
-    subject = "Handy Fix admin password reset"
+    subject = "Craft Master Labs admin password reset"
     html = _wrap(
         f'<h1 style="font-size:22px;margin:0 0 10px">Reset your admin password</h1>'
-        f'<p style="line-height:1.6">A password reset was requested for the Handy Fix admin console. If this was you, click the button below within the next 30 minutes.</p>'
+        f'<p style="line-height:1.6">A password reset was requested for the Craft Master Labs admin console. If this was you, click the button below within the next 30 minutes.</p>'
         f'<p><a href="{escape(reset_url)}" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600">Reset password</a></p>'
         f'<p style="line-height:1.6;font-size:12px;color:#6B7280">If you did not request this, ignore this email — your password stays unchanged.</p>'
     )

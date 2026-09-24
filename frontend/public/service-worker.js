@@ -1,4 +1,4 @@
-/* Handy Fix AI · Service Worker (v1)
+/* Craft Master Labs · Service Worker (v1)
  * Strategy:
  *  - Precache the app shell so the site opens instantly on repeat visits.
  *  - Cache-first for static assets (/static/, images, fonts).
@@ -82,7 +82,7 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; } catch { payload = { body: (event.data && event.data.text()) || "" }; }
-  const title = payload.title || "Handy Fix AI";
+  const title = payload.title || "Craft Master Labs";
   const opts = {
     body:  payload.body  || "",
     icon:  payload.icon  || "/icon-192.png",

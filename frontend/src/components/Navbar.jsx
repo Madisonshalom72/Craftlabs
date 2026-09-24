@@ -2,7 +2,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { http } from "@/lib/api";
-import { Wrench, LogOut, LayoutDashboard, HardHat, BookOpen, ShieldCheck, Radio, Crown } from "lucide-react";
+import { LogOut, LayoutDashboard, HardHat, BookOpen, ShieldCheck, Radio, Crown } from "lucide-react";
+import { LogoMark } from "@/components/Logo";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -23,12 +24,12 @@ export default function Navbar() {
     <nav data-testid="navbar" className="sticky top-0 z-40 glass border-b border-white/8">
       <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
         <Link to="/" data-testid="brand-link" className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center amber-glow">
-            <Wrench className="w-5 h-5 text-slate-900" strokeWidth={2.5} />
-          </div>
+          <LogoMark size={36} className="amber-glow rounded-lg transition group-hover:scale-105" />
           <div className="flex flex-col leading-none">
-            <span className="font-heading font-bold text-lg tracking-tight">Handy Fix</span>
-            <span className="font-mono text-[10px] uppercase tracking-widest text-amber-400">AI · Marketplace</span>
+            <span className="font-heading font-bold text-lg tracking-tight">
+              Craft Master <span className="text-amber-400">Labs</span>
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">AI · Marketplace</span>
           </div>
         </Link>
 

@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import LiveMapPreview from "@/components/LiveMapPreview";
 import ReferralLeaderboard from "@/components/ReferralLeaderboard";
 import WalkthroughModal from "@/components/WalkthroughModal";
+import RealityHero from "@/components/RealityHero";
 import useSEO from "@/hooks/useSEO";
 import { http } from "@/lib/api";
 import {
@@ -19,7 +20,7 @@ const CATEGORY_ICONS = {
 
 export default function Landing() {
   useSEO({
-    title: "Handy Fix AI — NYC handyman marketplace with AI diagnosis",
+    title: "Craft Master Labs — NYC handyman marketplace with AI diagnosis",
     description: "Snap a photo, get an AI-powered repair diagnosis, and book a vetted NYC craftsman in under 60 seconds. Real-time leads, verified pros, and Stripe-secured payments.",
     canonical: typeof window !== "undefined" ? window.location.origin + "/" : undefined,
   });
@@ -57,23 +58,23 @@ export default function Landing() {
       {/* HERO */}
       <section className="max-w-7xl mx-auto px-5 lg:px-8 pt-14 lg:pt-24 pb-16">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-          <div className="lg:col-span-7">
+          <div className="lg:col-span-5">
             <span className="ai-badge mb-6">
-              <Sparkles className="w-3.5 h-3.5" /> Claude Sonnet · Vision · Match
+              <Sparkles className="w-3.5 h-3.5" /> Craft Master Labs · Vision · Match
             </span>
             <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.05]">
-              Fix your home in
+              Scan the room.
               <span className="block mt-1">
-                <span className="text-amber-400">one photo.</span>
+                <span className="text-amber-400">Fix the future.</span>
               </span>
-              <span className="block text-slate-300 font-semibold text-3xl sm:text-4xl lg:text-5xl mt-2">
-                AI does the rest.
+              <span className="block text-slate-300 font-semibold text-2xl sm:text-3xl lg:text-4xl mt-3">
+                Craft Master Labs sees, diagnoses, and rebuilds.
               </span>
             </h1>
             <p className="mt-6 max-w-xl text-base sm:text-lg text-slate-400 leading-relaxed">
-              Snap a picture of what&rsquo;s broken. Handy Fix AI diagnoses the issue, prices the
-              repair, and matches you with a vetted craftsman in seconds &mdash; with escrow-backed
-              payments and licensed pros.
+              Craft Master Labs runs a live vision scan on any room, tags every issue with a price,
+              and morphs the space into the finished result &mdash; then matches you with a vetted
+              craftsman to make it real.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -81,7 +82,7 @@ export default function Landing() {
                 data-testid="hero-cta-post-job"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold transition amber-glow"
               >
-                Diagnose a Repair <ArrowRight className="w-4 h-4" />
+                Start a live scan <ArrowRight className="w-4 h-4" />
               </Link>
               <button
                 type="button"
@@ -89,7 +90,7 @@ export default function Landing() {
                 onClick={() => setShowTour(true)}
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-amber-500/40 hover:border-amber-500/70 hover:bg-amber-500/10 text-amber-300 font-semibold transition"
               >
-                <PlayCircle className="w-4 h-4" /> Watch 30s tour
+                <PlayCircle className="w-4 h-4" /> How it works
               </button>
               <Link
                 to="/login"
@@ -106,26 +107,8 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="lg:col-span-5">
-            <div className="relative">
-              <div className="absolute -inset-4 bg-amber-500/10 blur-3xl rounded-full pointer-events-none" />
-              <div className="glass rounded-3xl p-4 relative overflow-hidden">
-                <img
-                  src="https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80"
-                  alt="Craftsman at work"
-                  className="w-full h-72 sm:h-96 object-cover rounded-2xl"
-                />
-                <div className="absolute top-8 left-8 glass rounded-xl px-3 py-2 flex items-center gap-2 pulse-amber">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
-                  <span className="font-mono text-xs uppercase tracking-widest">Live · scanning</span>
-                </div>
-                <div className="absolute bottom-8 right-8 glass rounded-xl p-4 max-w-[220px]">
-                  <div className="ai-badge mb-2">Vision AI</div>
-                  <div className="text-sm font-semibold text-white leading-tight">Loose junction box · Electrical</div>
-                  <div className="text-xs text-slate-400 mt-1">Est. <span className="text-amber-400 font-mono">$120 – $180</span></div>
-                </div>
-              </div>
-            </div>
+          <div className="lg:col-span-7">
+            <RealityHero />
           </div>
         </div>
       </section>
@@ -257,7 +240,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-5 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
             <div>
-              <div className="font-heading font-bold text-lg text-slate-200">Handy Fix<span className="text-amber-400"> AI</span></div>
+              <div className="font-heading font-bold text-lg text-slate-200">Craft Master Labs<span className="text-amber-400"> AI</span></div>
               <p className="text-xs text-slate-500 mt-1 max-w-xs">The AI-native handyman marketplace for NYC. Photos in, fixes out.</p>
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
@@ -270,7 +253,7 @@ export default function Landing() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-6 border-t border-white/5 text-xs text-slate-500 font-mono uppercase tracking-widest">
-            <span>© 2026 Handy Fix AI · Guild Marketplace</span>
+            <span>© 2026 Craft Master Labs · Guild Marketplace</span>
             <span>Made with tools, not templates.</span>
           </div>
         </div>

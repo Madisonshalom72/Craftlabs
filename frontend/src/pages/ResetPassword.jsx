@@ -14,7 +14,7 @@ function formatApiErrorDetail(detail) {
 }
 
 export default function ResetPassword() {
-  useSEO({ title: "Set new password — Handy Fix AI", robots: "noindex,nofollow" });
+  useSEO({ title: "Set new password — Craft Master Labs", robots: "noindex,nofollow" });
   const [params] = useSearchParams();
   const [token, setToken] = useState(params.get("token") || "");
   const [newPw, setNewPw] = useState("");

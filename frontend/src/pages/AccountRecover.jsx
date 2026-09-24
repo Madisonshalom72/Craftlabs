@@ -7,8 +7,8 @@ import { KeyRound, Mail, ArrowRight, ShieldCheck, HelpCircle } from "lucide-reac
 
 export default function AccountRecover() {
   useSEO({
-    title: "Recover access — Handy Fix AI",
-    description: "How to recover your Handy Fix account when you can't sign in with Google.",
+    title: "Recover access — Craft Master Labs",
+    description: "How to recover your Craft Master Labs account when you can't sign in with Google.",
   });
   const [email, setEmail] = useState(null);
   useEffect(() => {
@@ -20,9 +20,9 @@ export default function AccountRecover() {
       <Navbar />
       <div className="max-w-2xl mx-auto px-5 lg:px-8 py-14" data-testid="account-recover-page">
         <div className="ai-badge mb-3"><HelpCircle className="w-3.5 h-3.5" /> Account help</div>
-        <h1 className="font-heading font-bold text-4xl leading-tight mb-3">Recover your Handy Fix account</h1>
+        <h1 className="font-heading font-bold text-4xl leading-tight mb-3">Recover your Craft Master Labs account</h1>
         <p className="text-slate-400 mb-10">
-          Handy Fix signs you in with your Google account — so there&apos;s no Handy Fix password to reset.
+          Craft Master Labs signs you in with your Google account — so there&apos;s no Craft Master Labs password to reset.
           Here&apos;s how to regain access in the two most common cases.
         </p>
 
@@ -41,7 +41,7 @@ export default function AccountRecover() {
               </div>
               <div>
                 <h2 className="font-heading font-bold text-xl">You forgot your Google password</h2>
-                <p className="text-sm text-slate-400 mt-1">Reset it directly with Google — the new password will let you sign back into Handy Fix automatically.</p>
+                <p className="text-sm text-slate-400 mt-1">Reset it directly with Google — the new password will let you sign back into Craft Master Labs automatically.</p>
               </div>
             </div>
             <a
@@ -63,12 +63,12 @@ export default function AccountRecover() {
               </div>
               <div>
                 <h2 className="font-heading font-bold text-xl">You lost access to your Google email</h2>
-                <p className="text-sm text-slate-400 mt-1">Contact us — we&apos;ll verify your identity and help you migrate your Handy Fix account to a new email.</p>
+                <p className="text-sm text-slate-400 mt-1">Contact us — we&apos;ll verify your identity and help you migrate your Craft Master Labs account to a new email.</p>
               </div>
             </div>
             <a
               data-testid="recover-contact-btn"
-              href="mailto:loans24funding@gmail.com?subject=Handy Fix%20account%20recovery"
+              href="mailto:loans24funding@gmail.com?subject=Craft Master Labs%20account%20recovery"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-slate-100 font-semibold text-sm transition"
             >
               Email support

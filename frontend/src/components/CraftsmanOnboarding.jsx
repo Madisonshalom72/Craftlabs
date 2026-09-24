@@ -307,7 +307,7 @@ export default function CraftsmanOnboarding({ profile, onDone, onSkip }) {
                 />
                 <span>
                   I confirm my license is valid, I carry liability insurance, and I agree to
-                  Handy Fix&apos;s craftsman agreement and 15% platform fee on booked jobs.
+                  Craft Master Labs&apos;s craftsman agreement and 15% platform fee on booked jobs.
                 </span>
               </label>
             </>

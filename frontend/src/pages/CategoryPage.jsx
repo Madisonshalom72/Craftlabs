@@ -34,7 +34,7 @@ export default function CategoryPage() {
   useEffect(() => {
     if (!data) return;
     const kicker = data.hero_kicker || data.category?.name;
-    const title = `${data.hero_title || data.category?.name} · Handy Fix AI`;
+    const title = `${data.hero_title || data.category?.name} · Craft Master Labs`;
     document.title = title;
     const desc = `${data.hero_sub || ""} ${data.total_pros || 0} vetted craftsmen · avg $${data.avg_hourly_rate}/hr · ${data.avg_rating}★. AI diagnosis, escrow-backed booking.`.trim();
     let m = document.querySelector('meta[name="description"]');
@@ -51,7 +51,7 @@ export default function CategoryPage() {
       "@type": "Service",
       "name": data.hero_title,
       "description": desc,
-      "provider": { "@type": "Organization", "name": "Handy Fix AI" },
+      "provider": { "@type": "Organization", "name": "Craft Master Labs" },
       "areaServed": { "@type": "City", "name": "New York" },
       "aggregateRating": data.total_pros ? {
         "@type": "AggregateRating",
@@ -64,7 +64,7 @@ export default function CategoryPage() {
     s.id = "cat-jsonld";
     s.textContent = JSON.stringify(jsonld);
     document.head.appendChild(s);
-    return () => { document.title = "Handy Fix AI"; };
+    return () => { document.title = "Craft Master Labs"; };
   }, [data]);
 
   if (loading) {
@@ -216,7 +216,7 @@ export default function CategoryPage() {
       <section className="max-w-7xl mx-auto px-5 lg:px-8 py-14">
         <div className="ai-badge mb-3">Workflow</div>
         <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight mb-10">
-          How Handy Fix handles {data.category.name.toLowerCase()} jobs
+          How Craft Master Labs handles {data.category.name.toLowerCase()} jobs
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {[
@@ -283,7 +283,7 @@ export default function CategoryPage() {
 
       <footer className="border-t border-white/8 py-8">
         <div className="max-w-7xl mx-auto px-5 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-slate-500 font-mono uppercase tracking-widest">
-          <span>© 2026 Handy Fix AI · {data.category.name} Marketplace</span>
+          <span>© 2026 Craft Master Labs · {data.category.name} Marketplace</span>
           <Link to="/" className="hover:text-amber-400 transition">All services →</Link>
         </div>
       </footer>
