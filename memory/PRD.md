@@ -75,12 +75,27 @@
 - **SEO**: `useSEO` hook wired on Landing/TOS/Privacy/Recover, per-page title+description+canonical+OG+Twitter. Sitemap extended (`/live`, `/pro`, `/terms`, `/privacy`).
 - **Promo/discount codes**: `allow_promotion_codes: True` on both one-time Checkout and subscription Checkout. Codes created in Stripe Dashboard auto-work.
 
+### Media, Portfolios & Gemini AI (2026-02, sixth sprint) — this sprint
+- **Leaderboard Season Reset**: `/api/referrals/leaderboard?period=monthly|all_time` with UTC calendar-month bounds. Landing tabs (This month / All-time) + live countdown badge ("Resets in Xd Yh").
+- **Emergent Object Storage** via `INTEGRATION_PROXY_URL/objstore/api/v1/storage`:
+  - `POST /api/uploads` (multipart, kind=portfolio|job|license|generic) → 50 MB cap, MIME whitelist (jpg/png/webp/gif/pdf), 415/413/400 rejections
+  - `GET /api/files/{file_id}` → serves bytes; `license` kind is private (owner or admin JWT only)
+  - `db.uploads` tracks metadata with soft-delete flag
+- **Handyman Portfolio Gallery** (new tab in HandymanDashboard):
+  - `POST /api/portfolio`, `GET /api/portfolio/{handyman_id}` (public), `GET /api/portfolio/me/items`, `DELETE /api/portfolio/{item_id}` (soft-deletes upload)
+  - Drag-picker uploads, progress %, thumbnail grid with hover-to-remove, "AI" badge on generated images
+- **Gemini AI**:
+  - `POST /api/ai/image/generate` → Nano Banana (`gemini-3.1-flash-image-preview`), auto-saves to storage, optional `save_to_portfolio=true` for handymen, 20 images/user/day cap
+  - `POST /api/ai/gemini/chat` → Gemini 3 Flash (`gemini-3-flash-preview`) one-shot text
+  - New modules: `/app/backend/storage.py`, `/app/backend/gemini_svc.py`
+
 ## Backlog (P1)
-- Refactor `server.py` (2800+ lines) into `routes/` + `services/` + `models/`
-- Split large React pages into sub-components
+- Refactor `server.py` (3560+ lines) into `routes/` + `services/` + `models/`
+- Split large React pages into sub-components (CraftsmanOnboarding, AdminLicenses, CustomerDashboard, Login)
 - Remove `/api/auth/demo-login` (or gate to non-prod) before real users
 - Wire live Stripe keys once account activation is complete
 - Rate-limit public AI endpoints (`/diagnose`, `/chat`) per IP
+- Extract `_is_admin_bearer(authorization)` helper (currently duplicated in `download_file`)
 
 ## Backlog (P2)
 - Milestone escrow releases
@@ -89,10 +104,11 @@
 - Handyman availability toggle from map marker
 - Analytics: weekly/monthly cohort retention chart
 - Admin: bulk-email users (behind G5 guardrail check)
-- Object Storage for hi-res job photos (currently base64)
 - Real map view of handymen with clustering
+- Auto-generate blog cover images via Nano Banana on `_run_generation`
+- Job diagnosis photos: migrate from base64 (`/ai/diagnose`) to storage-backed uploads
 
-## Test Coverage (iteration 6, 2026-02)
-- Backend: 43/43 pytest cases pass (31 new + 12 regression from iter5)
-- Frontend: 9/9 Playwright flows (admin login, dashboard, TOS, Privacy, Recover, forgot)
+## Test Coverage (iteration 8, 2026-02)
+- Backend: 23/23 new pytest cases pass (uploads, portfolio CRUD, private license auth, Nano Banana, Gemini text, leaderboard periods) + all prior iterations regression-clean
+- Frontend: Playwright verified landing leaderboard tabs + countdown, handyman Portfolio tab with upload and AI mockup UI
 - Deployment: `deployment_agent` PASS (before this sprint)

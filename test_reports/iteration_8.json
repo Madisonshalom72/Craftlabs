@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 8 — Leaderboard monthly/all-time tabs, Emergent Object Storage uploads, private license files, portfolio CRUD, Gemini 3 Flash text, and Nano Banana image generation. Full pytest suite (23 tests) passed 100%. Frontend Playwright verified landing leaderboard tabs + countdown, and handyman dashboard Portfolio tab with upload and AI mockup UI.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Handyman dashboard", "issues": ["Craftsman-verification onboarding modal auto-opens over the Portfolio tab content; users must dismiss it every visit until they complete onboarding. Not blocking but Playwright had to Escape/close-X to reach the gallery."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter8_media_gemini.py",
+    "/app/test_reports/pytest/iter8_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 3560 lines — consider splitting into routers (uploads/portfolio/ai) for maintainability.",
+    "AIImageRequest: kind defaults to 'portfolio' but is not restricted to handymen for the upload record; only the auto-save_to_portfolio branch checks role. That's fine — non-handymen can still generate but not auto-attach.",
+    "download_file: admin JWT check is duplicated inline; extract helper _is_admin_bearer(authorization) for reuse."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter8_media_gemini.py"],
+  "success_rate": { "backend": "100% (23/23)", "frontend": "100%" },
+  "test_credentials": "Admin Appfactory24/Datacap7$ verified via /api/admin/login. Demo handyman/customer via /api/auth/demo-login.",
+  "seed_data_creation": "Tests create TEST_-prefixed portfolio items and uploads under demo handyman/customer accounts (soft-deleted on cleanup path in delete flow).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Nano Banana takes ~10-25s per image; call POST /api/ai/image/generate via http://localhost:8001 (Cloudflare edge times out at 100s otherwise). The session_token cookie set via preview URL demo-login can be reused as a Cookie header against localhost. Handyman dashboard route is /handyman (NOT /dashboard/handyman). Onboarding modal auto-opens on /handyman for the demo handyman — dismiss by clicking any button with svg.lucide-x or press Escape before interacting with tab-portfolio.",
+  "rca of the issue": "N/A — no bugs found in the reviewed features."
+}
