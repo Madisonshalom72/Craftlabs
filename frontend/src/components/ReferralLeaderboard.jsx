@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { http } from "@/lib/api";
-import { Trophy, Crown, Medal, Gift, ArrowRight, Sparkles } from "lucide-react";
+import { Trophy, Crown, Medal, Gift, ArrowRight, Sparkles, Flame, CalendarClock } from "lucide-react";
 
 function rankAdornment(rank) {
   if (rank === 1) return { icon: Crown, tone: "text-amber-300", bg: "bg-amber-500/15 border-amber-500/40", label: "1st" };
@@ -14,16 +14,46 @@ function fmtCents(c) {
   return `$${(c / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
+function useCountdown(endIso) {
+  const [remaining, setRemaining] = useState("");
+  useEffect(() => {
+    if (!endIso) { setRemaining(""); return; }
+    const tick = () => {
+      const diff = new Date(endIso).getTime() - Date.now();
+      if (diff <= 0) { setRemaining("Resetting…"); return; }
+      const days = Math.floor(diff / 86400000);
+      const hours = Math.floor((diff % 86400000) / 3600000);
+      if (days >= 1) setRemaining(`Resets in ${days}d ${hours}h`);
+      else {
+        const mins = Math.floor((diff % 3600000) / 60000);
+        setRemaining(`Resets in ${hours}h ${mins}m`);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, [endIso]);
+  return remaining;
+}
+
 export default function ReferralLeaderboard() {
-  const [rows, setRows] = useState(null);
+  const [period, setPeriod] = useState("monthly");
+  const [data, setData] = useState({ monthly: null, all_time: null });
   const [reward, setReward] = useState(2500);
+  const [seasonEnd, setSeasonEnd] = useState(null);
+  const countdown = useCountdown(seasonEnd);
 
   useEffect(() => {
-    http.get("/referrals/leaderboard").then(r => {
-      setRows(r.data.leaderboard || []);
+    if (data[period] !== null) return;
+    http.get(`/referrals/leaderboard?period=${period}`).then(r => {
+      setData(prev => ({ ...prev, [period]: r.data.leaderboard || [] }));
       setReward(r.data.reward_cents_per_referral || 2500);
-    }).catch(() => setRows([]));
-  }, []);
+      if (period === "monthly" && r.data.season_end) setSeasonEnd(r.data.season_end);
+    }).catch(() => setData(prev => ({ ...prev, [period]: [] })));
+  }, [period, data]);
+
+  const rows = data[period];
+  const isMonthly = period === "monthly";
 
   return (
     <section data-testid="referral-leaderboard" className="max-w-7xl mx-auto px-5 lg:px-8 py-16">
@@ -38,7 +68,7 @@ export default function ReferralLeaderboard() {
             <span className="text-amber-400">climb the ranks.</span>
           </h2>
           <p className="mt-4 text-slate-400 max-w-md leading-relaxed">
-            Every friend that books their first paid job with your link earns you both <span className="text-amber-300 font-semibold">${(reward/100).toFixed(0)}</span> credit. The top ten sharers of all time are shown here — will you break in?
+            Every friend that books their first paid job with your link earns you both <span className="text-amber-300 font-semibold">${(reward/100).toFixed(0)}</span> credit. Monthly seasons reset on the 1st — fresh chances for newcomers, glory for veterans.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
@@ -59,10 +89,49 @@ export default function ReferralLeaderboard() {
         {/* Leaderboard pane */}
         <div className="lg:col-span-7">
           <div className="glass rounded-3xl p-5 sm:p-6 border border-white/10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Top referrers · all time</div>
-              <div className="text-[10px] font-mono uppercase tracking-widest text-amber-400">${(reward/100).toFixed(0)} per referral</div>
+            {/* Tabs */}
+            <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+              <div
+                role="tablist"
+                aria-label="Leaderboard period"
+                className="inline-flex p-1 rounded-full bg-slate-900/60 border border-white/10"
+              >
+                <button
+                  role="tab"
+                  aria-selected={isMonthly}
+                  data-testid="leaderboard-tab-monthly"
+                  onClick={() => setPeriod("monthly")}
+                  className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-widest font-mono rounded-full transition inline-flex items-center gap-1.5 ${
+                    isMonthly ? "bg-amber-500 text-slate-900" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Flame className="w-3.5 h-3.5" /> This month
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={!isMonthly}
+                  data-testid="leaderboard-tab-all-time"
+                  onClick={() => setPeriod("all_time")}
+                  className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-widest font-mono rounded-full transition inline-flex items-center gap-1.5 ${
+                    !isMonthly ? "bg-amber-500 text-slate-900" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Trophy className="w-3.5 h-3.5" /> All-time
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                {isMonthly && countdown && (
+                  <div
+                    data-testid="leaderboard-countdown"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono uppercase tracking-widest"
+                  >
+                    <CalendarClock className="w-3 h-3" /> {countdown}
+                  </div>
+                )}
+                <div className="text-[10px] font-mono uppercase tracking-widest text-amber-400">${(reward/100).toFixed(0)} per referral</div>
+              </div>
             </div>
+
             {rows === null ? (
               <div className="py-10 text-center text-slate-500 text-sm">Loading…</div>
             ) : rows.length === 0 ? (
@@ -70,9 +139,13 @@ export default function ReferralLeaderboard() {
                 <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 mx-auto mb-4 flex items-center justify-center">
                   <Trophy className="w-7 h-7 text-amber-400" />
                 </div>
-                <div className="font-heading font-bold text-xl text-white mb-1">Be the first.</div>
+                <div className="font-heading font-bold text-xl text-white mb-1">
+                  {isMonthly ? "New season, wide open." : "Be the first."}
+                </div>
                 <p className="text-sm text-slate-400 max-w-xs mx-auto">
-                  No one has topped the leaderboard yet. Sign up, grab your link, and you&apos;ll own the #1 spot.
+                  {isMonthly
+                    ? "No referrals yet this month. Grab your link now and own the top spot before anyone else shows up."
+                    : "No one has topped the leaderboard yet. Sign up, grab your link, and you'll own the #1 spot."}
                 </p>
                 <Link
                   to="/login"

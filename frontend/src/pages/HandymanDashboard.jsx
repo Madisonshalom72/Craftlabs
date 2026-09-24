@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import BookingChat from "@/components/BookingChat";
 import CraftsmanOnboarding from "@/components/CraftsmanOnboarding";
 import ReferralPanel from "@/components/ReferralPanel";
+import PortfolioGallery from "@/components/PortfolioGallery";
 import { API, http } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -263,6 +264,9 @@ export default function HandymanDashboard() {
           <button data-testid="tab-profile" onClick={() => setTab("profile")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "profile" ? "bg-amber-500 text-slate-900" : "text-slate-300 hover:bg-white/5"}`}>
             Profile Studio
           </button>
+          <button data-testid="tab-portfolio" onClick={() => setTab("portfolio")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "portfolio" ? "bg-amber-500 text-slate-900" : "text-slate-300 hover:bg-white/5"}`}>
+            Portfolio
+          </button>
         </div>
 
         {tab === "leads" && (
@@ -390,6 +394,10 @@ export default function HandymanDashboard() {
               {saving ? "Saving…" : "Save Profile"}
             </button>
           </div>
+        )}
+
+        {tab === "portfolio" && (
+          <PortfolioGallery />
         )}
       </div>
 

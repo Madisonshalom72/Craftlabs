@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Cookie, Header, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Cookie, Header, BackgroundTasks, UploadFile, File, Form, Query
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -24,6 +24,11 @@ from emailer import (
     send_email, tpl_booking_confirmed, tpl_payment_failed,
     tpl_trial_ending, tpl_admin_reset,
 )
+from storage import (
+    init_storage, put_object, get_object,
+    build_path, MIME_BY_EXT, APP_NAME as STORAGE_APP,
+)
+from gemini_svc import gemini_text, gemini_generate_image
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -1166,6 +1171,14 @@ async def _seed_root_admin() -> None:
 @app.on_event("startup")
 async def _startup_seed_admin():
     await _seed_root_admin()
+
+
+@app.on_event("startup")
+async def _startup_init_storage():
+    try:
+        init_storage()
+    except Exception as exc:  # non-fatal — uploads will retry on first request
+        logging.getLogger(__name__).warning("storage init failed at startup: %s", exc)
 
 
 @api.get("/admin/users")
@@ -2927,11 +2940,34 @@ async def _award_referral_credit(new_user_id: str, trigger: str) -> None:
         )
 
 
+def _current_month_bounds():
+    """Return (start, end, reset_at) for the current UTC calendar month."""
+    now = datetime.now(timezone.utc)
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if start.month == 12:
+        end = start.replace(year=start.year + 1, month=1)
+    else:
+        end = start.replace(month=start.month + 1)
+    return start, end
+
+
 @api.get("/referrals/leaderboard")
-async def referral_leaderboard(limit: int = 10):
-    """Public top-referrers board. Names are privacy-fuzzed to first name + last initial."""
+async def referral_leaderboard(limit: int = 10, period: str = "all_time"):
+    """Public top-referrers board. Names are privacy-fuzzed to first name + last initial.
+
+    period: 'all_time' (default) or 'monthly' (current UTC calendar month).
+    """
     limit = max(1, min(limit, 25))
-    pipeline = [
+    period = period if period in ("all_time", "monthly") else "all_time"
+
+    match_stage = []
+    season_start = None
+    season_end = None
+    if period == "monthly":
+        season_start, season_end = _current_month_bounds()
+        match_stage.append({"$match": {"created_at": {"$gte": season_start, "$lt": season_end}}})
+
+    pipeline = match_stage + [
         {"$group": {
             "_id": "$referrer_user_id",
             "count": {"$sum": 1},
@@ -2968,7 +3004,13 @@ async def referral_leaderboard(limit: int = 10):
             "count": r["count"],
             "total_reward_cents": r["total_reward_cents"],
         })
-    return {"leaderboard": out, "reward_cents_per_referral": REFERRAL_REWARD_CENTS}
+    return {
+        "leaderboard": out,
+        "reward_cents_per_referral": REFERRAL_REWARD_CENTS,
+        "period": period,
+        "season_start": season_start.isoformat() if season_start else None,
+        "season_end": season_end.isoformat() if season_end else None,
+    }
 
 
 @api.get("/referrals/me")
@@ -3168,6 +3210,331 @@ async def sitemap_xml(request: Request):
     body.append("</urlset>")
     from fastapi.responses import Response as FR
     return FR(content="\n".join(body), media_type="application/xml")
+
+
+# ============ FILE UPLOADS & AI IMAGE ============
+UPLOAD_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
+ALLOWED_UPLOAD_KINDS = {"portfolio", "job", "license", "generic"}
+ALLOWED_UPLOAD_MIME = {
+    "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif",
+    "application/pdf",
+}
+
+
+def _ext_from_upload(file: UploadFile) -> str:
+    if file.filename and "." in file.filename:
+        return file.filename.rsplit(".", 1)[-1].lower()
+    if file.content_type in ("image/jpeg", "image/jpg"):
+        return "jpg"
+    if file.content_type == "image/png":
+        return "png"
+    if file.content_type == "image/webp":
+        return "webp"
+    if file.content_type == "application/pdf":
+        return "pdf"
+    return "bin"
+
+
+@api.post("/uploads")
+async def upload_file(
+    file: UploadFile = File(...),
+    kind: str = Form("generic"),
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Upload a file to Emergent Object Storage. Returns {file_id, url, kind}.
+
+    kind: portfolio | job | license | generic.  Licenses are private (auth required to download).
+    """
+    user = await get_current_user(session_token, authorization)
+    if kind not in ALLOWED_UPLOAD_KINDS:
+        raise HTTPException(400, f"Invalid kind. Allowed: {sorted(ALLOWED_UPLOAD_KINDS)}")
+    if file.content_type not in ALLOWED_UPLOAD_MIME:
+        raise HTTPException(415, f"Unsupported content type: {file.content_type}")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "Empty file")
+    if len(data) > UPLOAD_MAX_BYTES:
+        raise HTTPException(413, "File exceeds 50 MB limit")
+
+    ext = _ext_from_upload(file)
+    file_id = uuid.uuid4().hex
+    path = build_path(kind, user["user_id"], file_id, ext)
+    content_type = file.content_type or MIME_BY_EXT.get(ext, "application/octet-stream")
+
+    try:
+        result = put_object(path, data, content_type)
+    except Exception as exc:
+        logging.getLogger(__name__).exception("upload failed")
+        raise HTTPException(502, f"Storage upload failed: {exc}")
+
+    doc = {
+        "file_id": file_id,
+        "user_id": user["user_id"],
+        "kind": kind,
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": content_type,
+        "size": result.get("size", len(data)),
+        "is_private": kind == "license",
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.uploads.insert_one(doc)
+    return {
+        "file_id": file_id,
+        "kind": kind,
+        "size": doc["size"],
+        "content_type": content_type,
+        "url": f"/api/files/{file_id}",
+    }
+
+
+@api.get("/files/{file_id}")
+async def download_file(
+    file_id: str,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Serve an uploaded file. Private (license) requires the owner or an admin."""
+    rec = await db.uploads.find_one({"file_id": file_id, "is_deleted": False}, {"_id": 0})
+    if not rec:
+        raise HTTPException(404, "File not found")
+
+    if rec.get("is_private"):
+        try:
+            user = await get_current_user(session_token, authorization)
+        except HTTPException:
+            user = None
+        # Admin JWT fallback
+        is_admin = False
+        try:
+            token = None
+            if authorization and authorization.startswith("Bearer "):
+                token = authorization[7:]
+            if token:
+                try:
+                    _admin_decode_token(token)
+                    is_admin = True
+                except Exception:
+                    is_admin = False
+        except Exception:
+            is_admin = False
+        if not is_admin and (not user or user["user_id"] != rec["user_id"]):
+            raise HTTPException(403, "Forbidden")
+
+    try:
+        data, content_type = get_object(rec["storage_path"])
+    except Exception as exc:
+        logging.getLogger(__name__).exception("download failed")
+        raise HTTPException(502, f"Storage read failed: {exc}")
+    from fastapi.responses import Response as FR
+    return FR(
+        content=data,
+        media_type=rec.get("content_type") or content_type,
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+# ------- Portfolio (handyman public gallery) -------
+class PortfolioAdd(BaseModel):
+    file_id: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    is_ai_generated: Optional[bool] = False
+
+
+@api.post("/portfolio")
+async def portfolio_add(
+    payload: PortfolioAdd,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    user = await get_current_user(session_token, authorization)
+    if user.get("role") != "handyman":
+        raise HTTPException(403, "Only handymen can add portfolio items")
+    upload = await db.uploads.find_one(
+        {"file_id": payload.file_id, "user_id": user["user_id"], "is_deleted": False},
+        {"_id": 0},
+    )
+    if not upload:
+        raise HTTPException(404, "Upload not found")
+    if not (upload.get("content_type") or "").startswith("image/"):
+        raise HTTPException(400, "Portfolio items must be images")
+    item = {
+        "item_id": uuid.uuid4().hex,
+        "user_id": user["user_id"],
+        "file_id": payload.file_id,
+        "url": f"/api/files/{payload.file_id}",
+        "title": (payload.title or "")[:120],
+        "description": (payload.description or "")[:500],
+        "is_ai_generated": bool(payload.is_ai_generated),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.portfolio_items.insert_one(item)
+    item.pop("_id", None)
+    return item
+
+
+@api.get("/portfolio/{handyman_id}")
+async def portfolio_list(handyman_id: str):
+    items = await db.portfolio_items.find(
+        {"user_id": handyman_id}, {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return {"items": items}
+
+
+@api.get("/portfolio/me/items")
+async def portfolio_mine(
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    user = await get_current_user(session_token, authorization)
+    items = await db.portfolio_items.find(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return {"items": items}
+
+
+@api.delete("/portfolio/{item_id}")
+async def portfolio_delete(
+    item_id: str,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    user = await get_current_user(session_token, authorization)
+    item = await db.portfolio_items.find_one({"item_id": item_id}, {"_id": 0})
+    if not item:
+        raise HTTPException(404, "Portfolio item not found")
+    if item["user_id"] != user["user_id"]:
+        raise HTTPException(403, "Not your item")
+    await db.portfolio_items.delete_one({"item_id": item_id})
+    # Soft-delete the underlying upload too (storage has no delete API)
+    await db.uploads.update_one(
+        {"file_id": item["file_id"], "user_id": user["user_id"]},
+        {"$set": {"is_deleted": True}},
+    )
+    return {"ok": True}
+
+
+# ------- AI Image Generation (Nano Banana) -------
+class AIImageRequest(BaseModel):
+    prompt: str
+    kind: Optional[str] = "portfolio"  # portfolio (default) | generic
+    save_to_portfolio: Optional[bool] = False
+    title: Optional[str] = None
+
+
+@api.post("/ai/image/generate")
+async def ai_generate_image(
+    payload: AIImageRequest,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Generate an image with Gemini Nano Banana, save it to storage, and return {file_id, url}.
+
+    Daily cap: 20 images / user to control spend.
+    """
+    user = await get_current_user(session_token, authorization)
+    prompt = (payload.prompt or "").strip()
+    if len(prompt) < 5:
+        raise HTTPException(400, "Prompt must be at least 5 characters")
+    if len(prompt) > 1000:
+        raise HTTPException(400, "Prompt must be under 1000 characters")
+
+    # Daily quota
+    since = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    used = await db.ai_image_events.count_documents({
+        "user_id": user["user_id"], "created_at": {"$gte": since},
+    })
+    if used >= 20:
+        raise HTTPException(429, "Daily image generation limit reached (20/day)")
+
+    kind = payload.kind if payload.kind in ("portfolio", "generic") else "portfolio"
+
+    try:
+        image_bytes, mime = await gemini_generate_image(prompt)
+    except Exception as exc:
+        logging.getLogger(__name__).exception("nano banana failed")
+        raise HTTPException(502, f"Image generation failed: {exc}")
+
+    ext = "png" if "png" in mime else ("webp" if "webp" in mime else "jpg")
+    file_id = uuid.uuid4().hex
+    path = build_path(kind, user["user_id"], file_id, ext)
+    result = put_object(path, image_bytes, mime)
+
+    upload_doc = {
+        "file_id": file_id,
+        "user_id": user["user_id"],
+        "kind": kind,
+        "storage_path": result["path"],
+        "original_filename": f"ai-generated-{file_id[:8]}.{ext}",
+        "content_type": mime,
+        "size": result.get("size", len(image_bytes)),
+        "is_private": False,
+        "is_deleted": False,
+        "is_ai_generated": True,
+        "prompt": prompt[:500],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.uploads.insert_one(upload_doc)
+    await db.ai_image_events.insert_one({
+        "user_id": user["user_id"], "prompt": prompt[:500],
+        "file_id": file_id, "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    item = None
+    if payload.save_to_portfolio and user.get("role") == "handyman":
+        item = {
+            "item_id": uuid.uuid4().hex,
+            "user_id": user["user_id"],
+            "file_id": file_id,
+            "url": f"/api/files/{file_id}",
+            "title": (payload.title or "AI mockup")[:120],
+            "description": prompt[:500],
+            "is_ai_generated": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.portfolio_items.insert_one(item)
+        item.pop("_id", None)
+
+    return {
+        "file_id": file_id,
+        "url": f"/api/files/{file_id}",
+        "kind": kind,
+        "portfolio_item": item,
+        "remaining_today": max(0, 19 - used),
+    }
+
+
+# ------- Gemini text (optional secondary AI) -------
+class GeminiTextRequest(BaseModel):
+    prompt: str
+    system: Optional[str] = None
+    session_id: Optional[str] = None
+
+
+@api.post("/ai/gemini/chat")
+async def ai_gemini_chat(
+    payload: GeminiTextRequest,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Ask Gemini 3 Flash a question. Non-streaming, returns full text."""
+    user = await get_current_user(session_token, authorization)
+    prompt = (payload.prompt or "").strip()
+    if len(prompt) < 2:
+        raise HTTPException(400, "Prompt too short")
+    if len(prompt) > 4000:
+        raise HTTPException(400, "Prompt must be under 4000 characters")
+    system = payload.system or "You are CraftPulse AI, a concise expert home-repair assistant."
+    try:
+        text = await gemini_text(prompt, system=system, session_id=payload.session_id or f"user-{user['user_id']}")
+    except Exception as exc:
+        logging.getLogger(__name__).exception("gemini text failed")
+        raise HTTPException(502, f"Gemini call failed: {exc}")
+    return {"text": text, "model": "gemini-3-flash-preview"}
 
 
 # ============ MOUNT ============
