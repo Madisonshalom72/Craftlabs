@@ -5,7 +5,7 @@ import useSEO from "@/hooks/useSEO";
 import { CheckCircle2, AlertCircle, Loader2, Mail } from "lucide-react";
 
 export default function VerifyEmail() {
-  useSEO({ title: "Verify email — CraftPulse AI", robots: "noindex,nofollow" });
+  useSEO({ title: "Verify email — Handy Fix AI", robots: "noindex,nofollow" });
   const [params] = useSearchParams();
   const token = params.get("token");
   const [status, setStatus] = useState("checking");

@@ -27,7 +27,7 @@ export default function Navbar() {
             <Wrench className="w-5 h-5 text-slate-900" strokeWidth={2.5} />
           </div>
           <div className="flex flex-col leading-none">
-            <span className="font-heading font-bold text-lg tracking-tight">CraftPulse</span>
+            <span className="font-heading font-bold text-lg tracking-tight">Handy Fix</span>
             <span className="font-mono text-[10px] uppercase tracking-widest text-amber-400">AI · Marketplace</span>
           </div>
         </Link>

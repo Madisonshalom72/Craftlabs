@@ -19,7 +19,7 @@ const CATEGORY_ICONS = {
 
 export default function Landing() {
   useSEO({
-    title: "CraftPulse AI — NYC handyman marketplace with AI diagnosis",
+    title: "Handy Fix AI — NYC handyman marketplace with AI diagnosis",
     description: "Snap a photo, get an AI-powered repair diagnosis, and book a vetted NYC craftsman in under 60 seconds. Real-time leads, verified pros, and Stripe-secured payments.",
     canonical: typeof window !== "undefined" ? window.location.origin + "/" : undefined,
   });
@@ -71,7 +71,7 @@ export default function Landing() {
               </span>
             </h1>
             <p className="mt-6 max-w-xl text-base sm:text-lg text-slate-400 leading-relaxed">
-              Snap a picture of what&rsquo;s broken. CraftPulse AI diagnoses the issue, prices the
+              Snap a picture of what&rsquo;s broken. Handy Fix AI diagnoses the issue, prices the
               repair, and matches you with a vetted craftsman in seconds &mdash; with escrow-backed
               payments and licensed pros.
             </p>
@@ -257,7 +257,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-5 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
             <div>
-              <div className="font-heading font-bold text-lg text-slate-200">CraftPulse<span className="text-amber-400"> AI</span></div>
+              <div className="font-heading font-bold text-lg text-slate-200">Handy Fix<span className="text-amber-400"> AI</span></div>
               <p className="text-xs text-slate-500 mt-1 max-w-xs">The AI-native handyman marketplace for NYC. Photos in, fixes out.</p>
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
@@ -270,7 +270,7 @@ export default function Landing() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-6 border-t border-white/5 text-xs text-slate-500 font-mono uppercase tracking-widest">
-            <span>© 2026 CraftPulse AI · Guild Marketplace</span>
+            <span>© 2026 Handy Fix AI · Guild Marketplace</span>
             <span>Made with tools, not templates.</span>
           </div>
         </div>

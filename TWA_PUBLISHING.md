@@ -2,7 +2,7 @@
 
 **Target production domain:** `craftpulse.app`
 **Android package name:** `ai.craftpulse.twa`
-**Play Store listing name:** CraftPulse AI
+**Play Store listing name:** Handy Fix AI
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### 1a. Deploy the app on Emergent
 1. Click **Deploy** in the top-right of your Emergent chat UI.
-2. Wait ~2 minutes. Emergent will give you a `*.emergentagent.com` URL (e.g. `craftpulse-live.emergentagent.com`). Copy it — you'll need it in step 1c.
+2. Wait ~2 minutes. Emergent will give you a `*.emergentagent.com` URL (e.g. `handy-fix-live.emergentagent.com`). Copy it — you'll need it in step 1c.
 
 ### 1b. Point DNS at Emergent
 Add these records at your registrar (Cloudflare / Namecheap / Google Domains / GoDaddy — same pattern everywhere):
@@ -20,7 +20,7 @@ Add these records at your registrar (Cloudflare / Namecheap / Google Domains / G
 | CNAME  | `@` (or blank)     | `<your-emergent-deployed-url>` (from 1a) | Auto  |
 | CNAME  | `www`       | `<your-emergent-deployed-url>` (from 1a) | Auto  |
 
-**Cloudflare users**: turn OFF the orange cloud (proxy) for CraftPulse — Emergent handles TLS/certs directly, and Cloudflare's proxy will break some cookies.
+**Cloudflare users**: turn OFF the orange cloud (proxy) for Handy Fix — Emergent handles TLS/certs directly, and Cloudflare's proxy will break some cookies.
 
 Verify with:
 ```bash
@@ -56,14 +56,14 @@ A TWA is a thin Android wrapper around your PWA. Once installed, users see your 
   ```
 
 ### 2b. Initialize the TWA project
-Run from anywhere (creates a `craftpulse-twa/` folder):
+Run from anywhere (creates a `handy-fix-twa/` folder):
 ```bash
 bubblewrap init --manifest="https://craftpulse.app/manifest.json"
 ```
 When prompted:
 - **Application package name** → `ai.craftpulse.twa` (already in `twa-manifest.json` — accept default)
-- **Application name** → `CraftPulse AI`
-- **Launcher name** → `CraftPulse`
+- **Application name** → `Handy Fix AI`
+- **Launcher name** → `Handy Fix`
 - **Display mode** → `standalone`
 - **Orientation** → `portrait`
 - **Status bar color** → `#0B0D11`
@@ -72,7 +72,7 @@ When prompted:
 
 ### 2c. Build the AAB (release bundle for Play Store)
 ```bash
-cd craftpulse-twa
+cd handy-fix-twa
 bubblewrap build
 ```
 Output: `app-release-bundle.aab` in the current folder. This is what you upload to Play Store.
@@ -119,7 +119,7 @@ This file **must** be reachable at the exact path `/.well-known/assetlinks.json`
 
 ### 3b. Create the app listing
 1. Play Console → **Create app** → fill in:
-   - App name: `CraftPulse AI`
+   - App name: `Handy Fix AI`
    - Default language: English (US)
    - App or game: App
    - Free or paid: Free
@@ -143,7 +143,7 @@ Copy-paste the content from `PLAY_STORE_LISTING.md` into these Play Console fiel
 ### 3d. Upload the AAB
 1. Play Console → **Production** → **Create new release**.
 2. Upload `app-release-bundle.aab`.
-3. Set release notes: `Initial release — CraftPulse AI marketplace with AI diagnosis, live pro matching, and Stripe-secured booking.`
+3. Set release notes: `Initial release — Handy Fix AI marketplace with AI diagnosis, live pro matching, and Stripe-secured booking.`
 4. Save → **Send for review**.
 
 Review typically takes **1-7 days** for a first submission.

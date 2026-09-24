@@ -57,7 +57,7 @@ export default function InstallPrompt() {
           <Download className="w-5 h-5 text-slate-900" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-heading font-semibold text-sm text-slate-100">Install CraftPulse</div>
+          <div className="font-heading font-semibold text-sm text-slate-100">Install Handy Fix</div>
           {deferred ? (
             <p className="text-xs text-slate-400 mt-1">One tap to add to your home screen. Works offline.</p>
           ) : (

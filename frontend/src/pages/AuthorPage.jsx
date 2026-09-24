@@ -17,7 +17,7 @@ export default function AuthorPage() {
 
   useEffect(() => {
     if (!editor) return;
-    document.title = `${editor.name} · ${editor.title} · CraftPulse AI`;
+    document.title = `${editor.name} · ${editor.title} · Handy Fix AI`;
     let m = document.querySelector('meta[name="description"]');
     if (!m) { m = document.createElement("meta"); m.name = "description"; document.head.appendChild(m); }
     m.content = `${editor.name} — ${editor.credentials}. ${editor.bio}`.slice(0, 300);
@@ -32,14 +32,14 @@ export default function AuthorPage() {
       "image": editor.picture,
       "knowsAbout": editor.expertise,
       "sameAs": editor.linkedin ? [editor.linkedin] : [],
-      "worksFor": { "@type": "Organization", "name": "CraftPulse AI" },
+      "worksFor": { "@type": "Organization", "name": "Handy Fix AI" },
     };
     const s = document.createElement("script");
     s.type = "application/ld+json";
     s.id = "author-jsonld";
     s.textContent = JSON.stringify(jsonld);
     document.head.appendChild(s);
-    return () => { document.title = "CraftPulse AI"; };
+    return () => { document.title = "Handy Fix AI"; };
   }, [editor]);
 
   if (notFound) return (

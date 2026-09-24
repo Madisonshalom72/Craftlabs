@@ -122,7 +122,7 @@ export default function AdminLicenses() {
               <ShieldCheck className="w-4 h-4 text-slate-900" strokeWidth={2.5} />
             </div>
             <div className="leading-none">
-              <div className="font-heading font-bold text-sm">CraftPulse Admin</div>
+              <div className="font-heading font-bold text-sm">Handy Fix Admin</div>
               <div className="font-mono text-[9px] uppercase tracking-widest text-amber-400">console</div>
             </div>
           </Link>

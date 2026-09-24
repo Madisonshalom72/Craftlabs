@@ -113,7 +113,7 @@ export default function AdminDashboard() {
               <ShieldCheck className="w-4 h-4 text-slate-900" strokeWidth={2.5} />
             </div>
             <div className="leading-none">
-              <div className="font-heading font-bold text-sm">CraftPulse Admin</div>
+              <div className="font-heading font-bold text-sm">Handy Fix Admin</div>
               <div className="font-mono text-[9px] uppercase tracking-widest text-amber-400">console · {me.role}</div>
             </div>
           </Link>
@@ -134,7 +134,7 @@ export default function AdminDashboard() {
       <div className="max-w-7xl mx-auto px-5 lg:px-8 py-8">
         <div className="ai-badge mb-2"><BarChart3 className="w-3.5 h-3.5" /> Admin Dashboard</div>
         <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight">Business at a glance</h1>
-        <p className="text-slate-400 mt-1 text-sm">Live metrics from the CraftPulse marketplace.</p>
+        <p className="text-slate-400 mt-1 text-sm">Live metrics from the Handy Fix marketplace.</p>
 
         {/* Tabs */}
         <div className="mt-6 flex gap-2 p-1 bg-white/5 rounded-xl border border-white/8 w-fit">

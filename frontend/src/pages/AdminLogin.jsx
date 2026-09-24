@@ -45,7 +45,7 @@ export default function AdminLogin() {
             <ShieldCheck className="w-6 h-6 text-slate-900" strokeWidth={2.5} />
           </div>
           <div className="text-left leading-none">
-            <div className="font-heading font-bold text-lg tracking-tight">CraftPulse</div>
+            <div className="font-heading font-bold text-lg tracking-tight">Handy Fix</div>
             <div className="font-mono text-[10px] uppercase tracking-widest text-amber-400">Admin console</div>
           </div>
         </Link>
@@ -126,7 +126,7 @@ export default function AdminLogin() {
           </div>
         </div>
         <p className="text-center text-[10px] font-mono uppercase tracking-widest text-slate-600 mt-6">
-          Not a customer or handyman? <Link to="/" className="text-amber-500 hover:text-amber-400">Back to CraftPulse</Link>
+          Not a customer or handyman? <Link to="/" className="text-amber-500 hover:text-amber-400">Back to Handy Fix</Link>
         </p>
       </div>
     </div>

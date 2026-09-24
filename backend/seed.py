@@ -1,4 +1,4 @@
-"""Seed handymen data for CraftPulse AI marketplace."""
+"""Seed handymen data for Handy Fix AI marketplace."""
 import asyncio
 import os
 import uuid

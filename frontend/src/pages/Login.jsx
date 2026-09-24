@@ -20,8 +20,8 @@ function formatApiErrorDetail(detail) {
 
 export default function Login() {
   useSEO({
-    title: "Sign in — CraftPulse AI",
-    description: "Sign in to CraftPulse with email/password or Google to post jobs, accept leads, and manage your marketplace.",
+    title: "Sign in — Handy Fix AI",
+    description: "Sign in to Handy Fix with email/password or Google to post jobs, accept leads, and manage your marketplace.",
     robots: "noindex,follow",
   });
   const { setUser } = useAuth();
@@ -101,7 +101,7 @@ export default function Login() {
             <Wrench className="w-5 h-5 text-slate-900" strokeWidth={2.5} />
           </div>
           <div className="flex flex-col leading-none">
-            <span className="font-heading font-bold text-xl tracking-tight">CraftPulse</span>
+            <span className="font-heading font-bold text-xl tracking-tight">Handy Fix</span>
             <span className="font-mono text-[10px] uppercase tracking-widest text-amber-400">AI · Marketplace</span>
           </div>
         </a>

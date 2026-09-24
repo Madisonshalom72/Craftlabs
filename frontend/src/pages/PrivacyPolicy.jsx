@@ -4,8 +4,8 @@ import { Lock } from "lucide-react";
 
 export default function PrivacyPolicy() {
   useSEO({
-    title: "Privacy Policy — CraftPulse AI",
-    description: "How CraftPulse AI collects, uses, and protects your personal information across the marketplace, AI features, and payments.",
+    title: "Privacy Policy — Handy Fix AI",
+    description: "How Handy Fix AI collects, uses, and protects your personal information across the marketplace, AI features, and payments.",
   });
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -61,7 +61,7 @@ export default function PrivacyPolicy() {
           </section>
           <section>
             <h2 className="font-heading text-2xl font-bold text-white">Children</h2>
-            <p>CraftPulse is not intended for anyone under 18.</p>
+            <p>Handy Fix is not intended for anyone under 18.</p>
           </section>
           <section>
             <h2 className="font-heading text-2xl font-bold text-white">Contact</h2>

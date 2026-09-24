@@ -14,7 +14,7 @@ function formatApiErrorDetail(detail) {
 }
 
 export default function ForgotPassword() {
-  useSEO({ title: "Reset password — CraftPulse AI", robots: "noindex,follow" });
+  useSEO({ title: "Reset password — Handy Fix AI", robots: "noindex,follow" });
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -45,7 +45,7 @@ export default function ForgotPassword() {
           </div>
           <h1 className="font-heading font-bold text-3xl leading-tight mb-2">Forgot your password?</h1>
           <p className="text-sm text-slate-400 mb-6">
-            Enter the email tied to your CraftPulse account. If it exists, we&apos;ll send a reset link that expires in 60 minutes.
+            Enter the email tied to your Handy Fix account. If it exists, we&apos;ll send a reset link that expires in 60 minutes.
           </p>
 
           <form onSubmit={submit} className="space-y-4">

@@ -1,4 +1,4 @@
-# CraftPulse AI - Product Requirements Document
+# Handy Fix AI - Product Requirements Document
 
 ## Original Problem Statement
 > Need a handyman market place run by ai

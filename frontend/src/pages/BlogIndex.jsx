@@ -9,7 +9,7 @@ export default function BlogIndex() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = "Field Notes · CraftPulse AI Expert Guides";
+    document.title = "Field Notes · Handy Fix AI Expert Guides";
     let m = document.querySelector('meta[name="description"]');
     if (!m) { m = document.createElement("meta"); m.name = "description"; document.head.appendChild(m); }
     m.content = "AI-written expert guides for NYC homeowners: electrical, plumbing, HVAC, windows, doors, stairs, and more. Spot bad installs, know what to pay, hire smarter.";
