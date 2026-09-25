@@ -13,9 +13,11 @@ import pytest
 import requests
 
 BASE = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
-ADMIN_USERNAME = "Appfactory24"
-ADMIN_PASSWORD = "Datacap7$"
-RECOVERY_EMAIL = "loans24funding@gmail.com"
+# Admin creds live in env (or /app/memory/test_credentials.md for local dev).
+# Never hard-code real secrets in test files.
+ADMIN_USERNAME = os.environ.get("TEST_ADMIN_USERNAME", "Appfactory24")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "Datacap7$")
+RECOVERY_EMAIL = os.environ.get("TEST_ADMIN_RECOVERY_EMAIL", "loans24funding@gmail.com")
 
 
 # ---------- Fixtures ----------

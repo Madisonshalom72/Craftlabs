@@ -21,7 +21,7 @@ export default function ProSuccess() {
           setStatus("active");
           return;
         }
-      } catch { /* ignore */ }
+      } catch (err) { console.debug("[ProSuccess] poll error:", err); }
       setPoll(p => p + 1);
       timer = setTimeout(tick, 2000);
     };

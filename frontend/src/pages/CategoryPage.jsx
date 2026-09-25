@@ -242,7 +242,7 @@ export default function CategoryPage() {
           </h2>
           <div className="space-y-3">
             {data.faq.map((f, i) => (
-              <div key={i} data-testid={`faq-${i}`} className="glass rounded-2xl overflow-hidden">
+              <div key={`faq-${f.q || i}`} data-testid={`faq-${i}`} className="glass rounded-2xl overflow-hidden">
                 <button
                   data-testid={`faq-toggle-${i}`}
                   onClick={() => setOpenFaq(openFaq === i ? -1 : i)}

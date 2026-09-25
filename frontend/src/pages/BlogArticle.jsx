@@ -193,20 +193,20 @@ export default function BlogArticle() {
         {/* Intro */}
         <div data-testid="blog-intro" className="mt-10 text-lg leading-relaxed text-slate-200 space-y-4">
           {(article.intro || "").split(/\n\n+/).filter(Boolean).map((p, i) => (
-            <p key={i}>{linkify(p)}</p>
+            <p key={`intro-${i}-${p.slice(0, 24)}`}>{linkify(p)}</p>
           ))}
         </div>
 
         {/* Sections */}
         <div className="mt-12 space-y-12">
           {(article.sections || []).map((s, i) => (
-            <section key={i} data-testid={`section-${i}`}>
+            <section key={`sec-${s.heading || i}`} data-testid={`section-${i}`}>
               <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-slate-100 mb-4">
                 {i + 1}. {s.heading}
               </h2>
               <div className="text-slate-300 leading-relaxed space-y-4">
                 {(s.body || "").split(/\n\n+/).filter(Boolean).map((p, j) => (
-                  <p key={j}>{linkify(p)}</p>
+                  <p key={`sec-${i}-p-${j}-${p.slice(0, 24)}`}>{linkify(p)}</p>
                 ))}
               </div>
             </section>
@@ -220,7 +220,7 @@ export default function BlogArticle() {
             <h3 className="font-heading text-xl font-bold mb-4">TL;DR</h3>
             <ul className="space-y-3">
               {article.key_takeaways.map((t, i) => (
-                <li key={i} data-testid={`takeaway-${i}`} className="flex items-start gap-3 text-slate-200">
+                <li key={`tk-${i}-${(t || "").slice(0, 24)}`} data-testid={`takeaway-${i}`} className="flex items-start gap-3 text-slate-200">
                   <div className="w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center text-xs font-mono flex-shrink-0 mt-0.5">
                     {i + 1}
                   </div>
@@ -237,7 +237,7 @@ export default function BlogArticle() {
             <h2 className="font-heading text-2xl font-bold tracking-tight mb-5">FAQ</h2>
             <div className="space-y-3">
               {article.faq.map((f, i) => (
-                <div key={i} className="glass rounded-2xl p-5">
+                <div key={`faq-${f.q || i}`} className="glass rounded-2xl p-5">
                   <h4 className="font-heading font-semibold text-lg mb-2">{f.q}</h4>
                   <p className="text-slate-300 text-sm leading-relaxed">{linkify(f.a)}</p>
                 </div>

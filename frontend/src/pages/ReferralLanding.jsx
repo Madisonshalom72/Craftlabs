@@ -9,7 +9,7 @@ export default function ReferralLanding() {
     if (code) {
       try {
         localStorage.setItem("cp_ref_code", code.toUpperCase());
-      } catch { /* ignore */ }
+      } catch (err) { console.debug("[ReferralLanding] localStorage unavailable:", err); }
     }
     navigate("/", { replace: true });
   }, [code, navigate]);

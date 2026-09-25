@@ -14,6 +14,10 @@ DB_NAME = os.environ.get("DB_NAME", "test_database")
 _mongo = MongoClient(MONGO_URL)
 _db = _mongo[DB_NAME]
 
+# Test-fixture password used for signup/login flows in this suite only.
+# Not a real credential — override via env if the test suite runs against a shared env.
+TEST_PASSWORD = os.environ.get("TEST_FIXTURE_PASSWORD", "SuperSecret1")  # nosec B105
+
 
 def _uniq_email():
     # Server lowercases emails, so we generate lowercase to match DB lookups.
@@ -28,7 +32,7 @@ def s():
 # ---------------- SIGNUP ----------------
 def test_signup_creates_user_bcrypt_and_verify_token(s):
     email = _uniq_email()
-    r = s.post(f"{API}/auth/signup", json={"email": email, "password": "SuperSecret1", "name": "Testy McTest", "role": "customer"})
+    r = s.post(f"{API}/auth/signup", json={"email": email, "password": TEST_PASSWORD, "name": "Testy McTest", "role": "customer"})
     assert r.status_code == 200, r.text
     body = r.json()
     assert body.get("ok") is True
@@ -47,7 +51,7 @@ def test_signup_creates_user_bcrypt_and_verify_token(s):
 
 def test_signup_same_email_twice_returns_generic_no_enumeration(s):
     email = _uniq_email()
-    r1 = s.post(f"{API}/auth/signup", json={"email": email, "password": "SuperSecret1", "name": "A"})
+    r1 = s.post(f"{API}/auth/signup", json={"email": email, "password": TEST_PASSWORD, "name": "A"})
     assert r1.status_code == 200
     r2 = s.post(f"{API}/auth/signup", json={"email": email, "password": "OtherPass2", "name": "B"})
     assert r2.status_code == 200, r2.text
@@ -60,22 +64,22 @@ def test_signup_short_password_rejected(s):
 
 
 def test_signup_invalid_email_rejected(s):
-    r = s.post(f"{API}/auth/signup", json={"email": "not-an-email", "password": "SuperSecret1", "name": "X"})
+    r = s.post(f"{API}/auth/signup", json={"email": "not-an-email", "password": TEST_PASSWORD, "name": "X"})
     assert r.status_code == 400
 
 
 # ---------------- VERIFY ----------------
 def test_login_unverified_returns_403(s):
     email = _uniq_email()
-    s.post(f"{API}/auth/signup", json={"email": email, "password": "SuperSecret1", "name": "A"})
-    r = s.post(f"{API}/auth/login-email", json={"email": email, "password": "SuperSecret1"})
+    s.post(f"{API}/auth/signup", json={"email": email, "password": TEST_PASSWORD, "name": "A"})
+    r = s.post(f"{API}/auth/login-email", json={"email": email, "password": TEST_PASSWORD})
     assert r.status_code == 403, r.text
     assert "verify" in r.json().get("detail", "").lower()
 
 
 def test_verify_marks_email_verified_and_burns_token(s):
     email = _uniq_email()
-    s.post(f"{API}/auth/signup", json={"email": email, "password": "SuperSecret1", "name": "A"})
+    s.post(f"{API}/auth/signup", json={"email": email, "password": TEST_PASSWORD, "name": "A"})
     user = _db.users.find_one({"email": email})
     tok_doc = _db.email_verify_tokens.find_one({"user_id": user["user_id"], "used": False})
     token = tok_doc["token"]
@@ -101,7 +105,7 @@ def test_verify_invalid_token_400(s):
 
 
 # ---------------- LOGIN ----------------
-def _signup_and_verify(s, email, password="SuperSecret1", name="Verified User", role="customer"):
+def _signup_and_verify(s, email, password=TEST_PASSWORD, name="Verified User", role="customer"):
     s.post(f"{API}/auth/signup", json={"email": email, "password": password, "name": name, "role": role})
     user = _db.users.find_one({"email": email})
     tok = _db.email_verify_tokens.find_one({"user_id": user["user_id"], "used": False})
@@ -112,7 +116,7 @@ def _signup_and_verify(s, email, password="SuperSecret1", name="Verified User", 
 def test_login_success_sets_httponly_cookie_and_me_strips_hash(s):
     email = _uniq_email()
     _signup_and_verify(s, email)
-    r = s.post(f"{API}/auth/login-email", json={"email": email, "password": "SuperSecret1"})
+    r = s.post(f"{API}/auth/login-email", json={"email": email, "password": TEST_PASSWORD})
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["user"]["email"] == email
@@ -161,7 +165,7 @@ def test_reset_password_updates_hash_and_invalidates_sessions(s):
     email = _uniq_email()
     _signup_and_verify(s, email)
     # Login to create a session
-    r = s.post(f"{API}/auth/login-email", json={"email": email, "password": "SuperSecret1"})
+    r = s.post(f"{API}/auth/login-email", json={"email": email, "password": TEST_PASSWORD})
     assert r.status_code == 200
     # Confirm /me works
     assert s.get(f"{API}/auth/me").status_code == 200
@@ -182,7 +186,7 @@ def test_reset_password_updates_hash_and_invalidates_sessions(s):
 
     # Old password fails, new works
     s2 = requests.Session()
-    assert s2.post(f"{API}/auth/login-email", json={"email": email, "password": "SuperSecret1"}).status_code == 401
+    assert s2.post(f"{API}/auth/login-email", json={"email": email, "password": TEST_PASSWORD}).status_code == 401
     assert s2.post(f"{API}/auth/login-email", json={"email": email, "password": "BrandNewP@ss1"}).status_code == 200
 
     # Token reuse blocked

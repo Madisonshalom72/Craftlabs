@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { http } from "@/lib/api";
 
 const AuthContext = createContext(null);
@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
           await http.post("/referrals/attach", { code });
           localStorage.removeItem("cp_ref_code");
         }
-      } catch { /* ignore */ }
+      } catch (err) { console.debug("[Auth] referral attach skipped:", err); }
     } catch {
       setUser(null);
     } finally {
@@ -35,13 +35,19 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, [checkAuth]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await http.post("/auth/logout");
     setUser(null);
-  };
+  }, []);
+
+  // Memoise the context value so children don't re-render on every parent render.
+  const value = useMemo(
+    () => ({ user, setUser, loading, checkAuth, logout }),
+    [user, loading, checkAuth, logout]
+  );
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, checkAuth, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

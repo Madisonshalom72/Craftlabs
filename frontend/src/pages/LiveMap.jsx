@@ -146,7 +146,7 @@ export default function LiveMap() {
         if (p.job_id && p.lat) {
           setJobs(prev => [p, ...prev.filter(j => j.job_id !== p.job_id)].slice(0, 30));
         }
-      } catch { /* ignore */ }
+      } catch (err) { console.debug("[LiveMap] SSE parse error:", err); }
     };
     return () => es.close();
   }, []);
