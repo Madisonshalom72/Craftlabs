@@ -98,6 +98,16 @@ module.exports = {
         'wire-draw': {
           '0%': { strokeDashoffset: '400' },
           '100%': { strokeDashoffset: '0' }
+        },
+        'kenburns': {
+          '0%':   { transform: 'scale(1) translate(0,0)' },
+          '50%':  { transform: 'scale(1.06) translate(-1%, -1%)' },
+          '100%': { transform: 'scale(1) translate(0,0)' }
+        },
+        'ping-slow': {
+          '0%':   { transform: 'scale(1)',   opacity: '1'   },
+          '70%':  { transform: 'scale(3)',   opacity: '0'   },
+          '100%': { transform: 'scale(3)',   opacity: '0'   }
         }
       },
       animation: {
@@ -106,7 +116,9 @@ module.exports = {
         'scanline': 'scanline 3.2s ease-in-out infinite',
         'grid-pulse': 'grid-pulse 2.4s ease-in-out infinite',
         'label-in': 'label-in 400ms cubic-bezier(.16,1,.3,1) both',
-        'wire-draw': 'wire-draw 1.8s ease-out forwards'
+        'wire-draw': 'wire-draw 1.8s ease-out forwards',
+        'kenburns': 'kenburns 12s ease-in-out infinite',
+        'ping-slow': 'ping-slow 2.4s cubic-bezier(0,0,.2,1) infinite'
       }
     }
   },

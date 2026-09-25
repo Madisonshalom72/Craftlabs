@@ -31,13 +31,6 @@ export default function Landing() {
   useEffect(() => {
     http.get("/handymen").then(r => setHandymen(r.data.slice(0, 4)));
     http.get("/categories").then(r => setCategories(r.data));
-    // Auto-open the tour on first visit (once per browser)
-    try {
-      if (!localStorage.getItem("cp_tour_seen")) {
-        const t = setTimeout(() => setShowTour(true), 800);
-        return () => clearTimeout(t);
-      }
-    } catch { /* ignore private-mode denial */ }
   }, []);
 
   const closeTour = () => {

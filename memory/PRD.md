@@ -75,7 +75,14 @@
 - **SEO**: `useSEO` hook wired on Landing/TOS/Privacy/Recover, per-page title+description+canonical+OG+Twitter. Sitemap extended (`/live`, `/pro`, `/terms`, `/privacy`).
 - **Promo/discount codes**: `allow_promotion_codes: True` on both one-time Checkout and subscription Checkout. Codes created in Stripe Dashboard auto-work.
 
-### Media, Portfolios & Gemini AI (2026-02, sixth sprint) — this sprint
+## Recent (2026-02, seventh sprint) — this sprint
+- **Rebrand**: Handy Fix AI → **Craft Master Labs** (31 files + DB blog articles via `/app/scripts/rename_brand_v2.py`)
+- **Logo system** (`/app/frontend/src/components/Logo.jsx`): custom chisel + circuit-line SVG mark, wordmark, and navbar lockup — wired into Navbar; SVG favicon + regenerated 32/180/192/512 PWA icons
+- **Brand kit tokens**: `craft-graphite / slate / fog / ink / amber / ember / lime / cyan` + 6 motion tokens added to `tailwind.config.js`; `/brand` internal page renders every logo variant, palette, type scale, and motion demo; `/app/BRAND_KIT.md` written
+- **Cinematic reality hero** (`/app/frontend/src/components/RealityHero.jsx`): retired the static snap-photo card. Now a CSS-driven choreographed demo with three auto-rotating scenes (electrical / kitchen / bathroom). Per scene: scanline sweep → three staggered bounding-box detections with typewritten labels → before/after morph slider auto-plays → craftsman match card slides in with photo/rating/quote. 100% CSS keyframes — never freezes on throttled tabs; JS only rotates scenes every ~10.5 s. Bottom scene selector + "Live · not a video" badge.
+- **Removed**: auto-opening walkthrough modal on landing (users trigger it via "How it works" CTA)
+
+
 - **Leaderboard Season Reset**: `/api/referrals/leaderboard?period=monthly|all_time` with UTC calendar-month bounds. Landing tabs (This month / All-time) + live countdown badge ("Resets in Xd Yh").
 - **Emergent Object Storage** via `INTEGRATION_PROXY_URL/objstore/api/v1/storage`:
   - `POST /api/uploads` (multipart, kind=portfolio|job|license|generic) → 50 MB cap, MIME whitelist (jpg/png/webp/gif/pdf), 415/413/400 rejections
