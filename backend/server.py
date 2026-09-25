@@ -4033,26 +4033,486 @@ async def admin_refund(
 
 # ---------- Webhook additions for escrow lifecycle ----------
 async def _handle_escrow_pi_event(obj: dict, event_type: str):
-    """Update job.escrow_status based on PI lifecycle."""
+    """Update job.escrow_status (single) OR milestone.status (milestone) based on PI lifecycle."""
     md = obj.get("metadata") or {}
-    if md.get("flow") != "escrow_hold":
-        return
-    job_id = md.get("job_id")
-    if not job_id:
-        return
-    if event_type == "payment_intent.succeeded":
-        await db.jobs.update_one(
-            {"job_id": job_id},
-            {"$set": {"escrow_status": "held", "status": "funded",
-                      "funded_at": datetime.now(timezone.utc).isoformat(),
-                      "updated_at": datetime.now(timezone.utc).isoformat()}},
+    flow = md.get("flow")
+    if flow == "escrow_hold":
+        job_id = md.get("job_id")
+        if not job_id:
+            return
+        if event_type == "payment_intent.succeeded":
+            await db.jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"escrow_status": "held", "status": "funded",
+                          "funded_at": datetime.now(timezone.utc).isoformat(),
+                          "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+        elif event_type in ("payment_intent.payment_failed", "payment_intent.canceled"):
+            await db.jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"escrow_status": "failed", "status": "payment_failed",
+                          "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+    elif flow == "escrow_hold_milestone":
+        ms_id = md.get("milestone_id")
+        if not ms_id:
+            return
+        if event_type == "payment_intent.succeeded":
+            await db.milestones.update_one(
+                {"milestone_id": ms_id},
+                {"$set": {"status": "held", "funded_at": datetime.now(timezone.utc).isoformat(),
+                          "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+        elif event_type in ("payment_intent.payment_failed", "payment_intent.canceled"):
+            await db.milestones.update_one(
+                {"milestone_id": ms_id},
+                {"$set": {"status": "failed",
+                          "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+
+
+# ---------- Milestone escrow (jobs ≥ $1500) ----------
+MILESTONE_MIN_TOTAL_CENTS = 150000  # $1500 threshold
+
+
+class MilestonePlan(BaseModel):
+    label: str
+    amount_cents: int
+
+
+class MilestoneCreateRequest(BaseModel):
+    job_id: str
+    milestones: List[MilestonePlan]  # up to 3
+
+
+@api.post("/escrow/milestones/create")
+async def milestones_create(
+    payload: MilestoneCreateRequest,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Split a job into up to 3 independently-funded milestones. Total must be ≥ $1500."""
+    user = await get_current_user(session_token, authorization)
+    job = await db.jobs.find_one({"job_id": payload.job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if job.get("customer_id") != user["user_id"]:
+        raise HTTPException(403, "Not your job")
+    if not (1 <= len(payload.milestones) <= 3):
+        raise HTTPException(400, "1–3 milestones only")
+    total = sum(m.amount_cents for m in payload.milestones)
+    if total < MILESTONE_MIN_TOTAL_CENTS:
+        raise HTTPException(400, f"Milestone jobs require a total of at least ${MILESTONE_MIN_TOTAL_CENTS//100}")
+    if any(m.amount_cents < 500 for m in payload.milestones):
+        raise HTTPException(400, "Each milestone must be at least $5")
+    if await db.milestones.count_documents({"job_id": payload.job_id}) > 0:
+        raise HTTPException(409, "Milestone plan already exists for this job")
+
+    docs = []
+    for i, m in enumerate(payload.milestones):
+        contractor_share, platform_fee = _cents_split(m.amount_cents)
+        docs.append({
+            "milestone_id": uuid.uuid4().hex,
+            "job_id": payload.job_id,
+            "index": i,
+            "label": m.label[:80] or f"Milestone {i+1}",
+            "amount_cents": m.amount_cents,
+            "contractor_share_cents": contractor_share,
+            "platform_fee_cents": platform_fee,
+            "status": "planned",  # planned → pending → held → completed_by_contractor → released|disputed|refunded
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    await db.milestones.insert_many(docs)
+    await db.jobs.update_one(
+        {"job_id": payload.job_id},
+        {"$set": {"milestone_plan_total_cents": total,
+                  "milestone_count": len(docs),
+                  "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    for d in docs:
+        d.pop("_id", None)
+    return {"job_id": payload.job_id, "milestones": docs}
+
+
+@api.get("/escrow/milestones/{job_id}")
+async def milestones_list(job_id: str,
+                          session_token: Optional[str] = Cookie(None),
+                          authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
+    job = await db.jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if user["user_id"] not in (job.get("customer_id"), job.get("assigned_handyman_id")):
+        raise HTTPException(403, "Not authorized to view milestones for this job")
+    items = await db.milestones.find({"job_id": job_id}, {"_id": 0}).sort("index", 1).to_list(10)
+    return {"milestones": items}
+
+
+class MilestoneActionRequest(BaseModel):
+    milestone_id: str
+    reason: Optional[str] = None
+
+
+@api.post("/escrow/milestones/fund")
+async def milestone_fund(
+    payload: MilestoneActionRequest,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Customer funds a single milestone → creates a PI just for that slice."""
+    user = await get_current_user(session_token, authorization)
+    ms = await db.milestones.find_one({"milestone_id": payload.milestone_id}, {"_id": 0})
+    if not ms:
+        raise HTTPException(404, "Milestone not found")
+    job = await db.jobs.find_one({"job_id": ms["job_id"]}, {"_id": 0})
+    if not job or job.get("customer_id") != user["user_id"]:
+        raise HTTPException(403, "Not your job")
+    if ms["status"] not in ("planned", "failed"):
+        raise HTTPException(409, f"Milestone already {ms['status']}")
+    if not job.get("assigned_handyman_id"):
+        raise HTTPException(400, "Assign a contractor to the job first")
+
+    try:
+        pi = stripe.PaymentIntent.create(
+            amount=ms["amount_cents"], currency="usd",
+            automatic_payment_methods={"enabled": True, "allow_redirects": "always"},
+            metadata={
+                "job_id": ms["job_id"], "milestone_id": ms["milestone_id"],
+                "customer_id": user["user_id"], "contractor_id": job["assigned_handyman_id"],
+                "contractor_share_cents": str(ms["contractor_share_cents"]),
+                "platform_fee_cents": str(ms["platform_fee_cents"]),
+                "flow": "escrow_hold_milestone",
+            },
+            description=f"CML · Job {ms['job_id'][:8]} · {ms['label']}",
         )
-    elif event_type in ("payment_intent.payment_failed", "payment_intent.canceled"):
-        await db.jobs.update_one(
-            {"job_id": job_id},
-            {"$set": {"escrow_status": "failed", "status": "payment_failed",
-                      "updated_at": datetime.now(timezone.utc).isoformat()}},
+    except stripe.error.StripeError as exc:
+        raise HTTPException(502, f"Payment init failed: {exc.user_message or str(exc)}")
+
+    await db.milestones.update_one(
+        {"milestone_id": payload.milestone_id},
+        {"$set": {"status": "pending", "stripe_payment_intent_id": pi.id,
+                  "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {
+        "client_secret": pi.client_secret,
+        "amount_cents": ms["amount_cents"],
+        "contractor_share_cents": ms["contractor_share_cents"],
+        "platform_fee_cents": ms["platform_fee_cents"],
+        "publishable_key": os.environ.get("STRIPE_PUBLISHABLE_KEY", ""),
+    }
+
+
+@api.post("/escrow/milestones/mark-complete")
+async def milestone_mark_complete(
+    payload: MilestoneActionRequest,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    user = await get_current_user(session_token, authorization)
+    ms = await db.milestones.find_one({"milestone_id": payload.milestone_id}, {"_id": 0})
+    if not ms:
+        raise HTTPException(404, "Milestone not found")
+    job = await db.jobs.find_one({"job_id": ms["job_id"]}, {"_id": 0})
+    if not job or job.get("assigned_handyman_id") != user["user_id"]:
+        raise HTTPException(403, "Not your milestone")
+    if ms["status"] != "held":
+        raise HTTPException(400, "Milestone must be funded before marking complete")
+    now = datetime.now(timezone.utc)
+    auto = (now + timedelta(hours=AUTO_APPROVE_HOURS)).isoformat()
+    await db.milestones.update_one(
+        {"milestone_id": payload.milestone_id},
+        {"$set": {"status": "completed_by_contractor",
+                  "completed_at": now.isoformat(), "auto_release_at": auto,
+                  "updated_at": now.isoformat()}},
+    )
+    return {"ok": True, "auto_release_at": auto}
+
+
+async def _release_milestone(ms: dict, actor: str) -> dict:
+    if ms["status"] != "held" and ms["status"] != "completed_by_contractor":
+        raise HTTPException(400, f"Cannot release; milestone status = {ms['status']}")
+    job = await db.jobs.find_one({"job_id": ms["job_id"]}, {"_id": 0})
+    contractor = await db.users.find_one({"user_id": job["assigned_handyman_id"]}, {"_id": 0})
+    if not contractor or not contractor.get("stripe_account_id"):
+        raise HTTPException(400, "Contractor has not connected a payout account")
+    try:
+        transfer = stripe.Transfer.create(
+            amount=ms["contractor_share_cents"], currency="usd",
+            destination=contractor["stripe_account_id"],
+            transfer_group=f"job_{ms['job_id']}",
+            metadata={"job_id": ms["job_id"], "milestone_id": ms["milestone_id"],
+                      "actor": actor, "flow": "escrow_release_milestone"},
         )
+    except stripe.error.StripeError as exc:
+        raise HTTPException(502, f"Milestone payout failed: {exc.user_message or str(exc)}")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.milestones.update_one(
+        {"milestone_id": ms["milestone_id"]},
+        {"$set": {"status": "released", "released_at": now, "released_by": actor,
+                  "stripe_transfer_id": transfer.id, "updated_at": now}},
+    )
+    await db.ledger.insert_one({
+        "entry_id": uuid.uuid4().hex,
+        "user_id": contractor["user_id"], "job_id": ms["job_id"],
+        "milestone_id": ms["milestone_id"],
+        "type": "milestone_payout_credit",
+        "amount_cents": ms["contractor_share_cents"],
+        "platform_fee_cents": ms["platform_fee_cents"],
+        "stripe_transfer_id": transfer.id,
+        "created_at": now,
+    })
+    return {"ok": True, "transfer_id": transfer.id}
+
+
+@api.post("/escrow/milestones/approve")
+async def milestone_approve(
+    payload: MilestoneActionRequest,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    user = await get_current_user(session_token, authorization)
+    ms = await db.milestones.find_one({"milestone_id": payload.milestone_id}, {"_id": 0})
+    if not ms:
+        raise HTTPException(404, "Milestone not found")
+    job = await db.jobs.find_one({"job_id": ms["job_id"]}, {"_id": 0})
+    if not job or job.get("customer_id") != user["user_id"]:
+        raise HTTPException(403, "Not your job")
+    return await _release_milestone(ms, actor=f"customer:{user['user_id']}")
+
+
+@api.post("/escrow/milestones/dispute")
+async def milestone_dispute(
+    payload: MilestoneActionRequest,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    user = await get_current_user(session_token, authorization)
+    ms = await db.milestones.find_one({"milestone_id": payload.milestone_id}, {"_id": 0})
+    if not ms:
+        raise HTTPException(404, "Milestone not found")
+    job = await db.jobs.find_one({"job_id": ms["job_id"]}, {"_id": 0})
+    if not job or job.get("customer_id") != user["user_id"]:
+        raise HTTPException(403, "Not your job")
+    if ms["status"] not in ("held", "completed_by_contractor"):
+        raise HTTPException(400, "Milestone not in a disputable state")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.milestones.update_one(
+        {"milestone_id": ms["milestone_id"]},
+        {"$set": {"status": "disputed", "dispute_reason": (payload.reason or "")[:1000],
+                  "disputed_at": now, "updated_at": now}},
+    )
+    await db.disputes.insert_one({
+        "dispute_id": uuid.uuid4().hex, "job_id": ms["job_id"],
+        "milestone_id": ms["milestone_id"],
+        "customer_id": user["user_id"], "contractor_id": job.get("assigned_handyman_id"),
+        "amount_cents": ms["amount_cents"],
+        "reason": (payload.reason or "")[:1000], "status": "open",
+        "created_at": now,
+    })
+    return {"ok": True}
+
+
+# ---------- Dispute admin console ----------
+@api.get("/admin/disputes")
+async def admin_list_disputes(
+    status: str = "open",
+    admin_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Admin queue: list disputes filtered by status (open|resolved|all)."""
+    token = admin_token
+    if not token and authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    if not token:
+        raise HTTPException(401, "Admin auth required")
+    try:
+        _admin_decode_token(token)
+    except Exception:
+        raise HTTPException(403, "Invalid admin token")
+    q = {} if status == "all" else {"status": status}
+    rows = await db.disputes.find(q, {"_id": 0}).sort("created_at", -1).to_list(200)
+    # Enrich with job + parties for the queue view
+    enriched = []
+    for d in rows:
+        job = await db.jobs.find_one({"job_id": d["job_id"]}, {"_id": 0}) or {}
+        cust = await db.users.find_one({"user_id": d.get("customer_id")}, {"_id": 0}) or {}
+        cont = await db.users.find_one({"user_id": d.get("contractor_id")}, {"_id": 0}) or {}
+        enriched.append({
+            **d,
+            "job_title": job.get("title"),
+            "job_status": job.get("status"),
+            "escrow_status": job.get("escrow_status"),
+            "job_amount_cents": job.get("quoted_amount_cents") or d.get("amount_cents") or 0,
+            "customer_name": cust.get("name") or cust.get("email"),
+            "contractor_name": cont.get("name") or cont.get("email"),
+            "customer_email": cust.get("email"),
+            "contractor_email": cont.get("email"),
+        })
+    return {"disputes": enriched}
+
+
+class DisputeResolveRequest(BaseModel):
+    dispute_id: str
+    action: str  # 'release' (pay contractor 100% of held) | 'refund' (customer full) | 'split'
+    split_contractor_cents: Optional[int] = None  # required when action=='split'
+    notes: Optional[str] = None
+
+
+@api.post("/admin/disputes/resolve")
+async def admin_resolve_dispute(
+    payload: DisputeResolveRequest,
+    admin_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    token = admin_token
+    if not token and authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    if not token:
+        raise HTTPException(401, "Admin auth required")
+    try:
+        admin = _admin_decode_token(token)
+    except Exception:
+        raise HTTPException(403, "Invalid admin token")
+
+    dispute = await db.disputes.find_one({"dispute_id": payload.dispute_id}, {"_id": 0})
+    if not dispute:
+        raise HTTPException(404, "Dispute not found")
+    if dispute.get("status") != "open":
+        raise HTTPException(409, f"Dispute already {dispute.get('status')}")
+
+    job = await db.jobs.find_one({"job_id": dispute["job_id"]}, {"_id": 0})
+    if not job:
+        raise HTTPException(404, "Job not found")
+    pi_id = job.get("stripe_payment_intent_id")
+    if not pi_id:
+        raise HTTPException(400, "Job has no PaymentIntent to act on")
+
+    action = payload.action
+    outcome: dict = {"action": action}
+    now = datetime.now(timezone.utc).isoformat()
+
+    if action == "release":
+        contractor = await db.users.find_one({"user_id": job.get("assigned_handyman_id")}, {"_id": 0})
+        if not contractor or not contractor.get("stripe_account_id"):
+            raise HTTPException(400, "Contractor has no payout account")
+        try:
+            transfer = stripe.Transfer.create(
+                amount=int(job.get("contractor_share_cents") or 0),
+                currency="usd",
+                destination=contractor["stripe_account_id"],
+                transfer_group=f"job_{job['job_id']}",
+                metadata={"job_id": job["job_id"], "dispute_id": payload.dispute_id,
+                          "flow": "dispute_release", "admin_notes": (payload.notes or "")[:200]},
+            )
+        except stripe.error.StripeError as exc:
+            raise HTTPException(502, f"Release failed: {exc.user_message or str(exc)}")
+        await db.jobs.update_one(
+            {"job_id": job["job_id"]},
+            {"$set": {"escrow_status": "released", "released_at": now,
+                      "released_by": "admin:dispute", "stripe_transfer_id": transfer.id,
+                      "status": "paid", "updated_at": now}},
+        )
+        await db.ledger.insert_one({
+            "entry_id": uuid.uuid4().hex,
+            "user_id": contractor["user_id"], "job_id": job["job_id"],
+            "type": "dispute_release_credit",
+            "amount_cents": int(job.get("contractor_share_cents") or 0),
+            "platform_fee_cents": int(job.get("platform_fee_cents") or 0),
+            "stripe_transfer_id": transfer.id, "created_at": now,
+        })
+        outcome["transfer_id"] = transfer.id
+
+    elif action == "refund":
+        try:
+            refund = stripe.Refund.create(
+                payment_intent=pi_id, reason="requested_by_customer",
+                metadata={"job_id": job["job_id"], "dispute_id": payload.dispute_id,
+                          "flow": "dispute_refund"},
+            )
+        except stripe.error.StripeError as exc:
+            raise HTTPException(502, f"Refund failed: {exc.user_message or str(exc)}")
+        await db.jobs.update_one(
+            {"job_id": job["job_id"]},
+            {"$set": {"escrow_status": "refunded", "refunded_at": now,
+                      "stripe_refund_id": refund.id, "status": "refunded", "updated_at": now}},
+        )
+        outcome["refund_id"] = refund.id
+        outcome["amount_cents"] = refund.amount
+
+    elif action == "split":
+        total = int(job.get("quoted_amount_cents") or 0)
+        c_cents = int(payload.split_contractor_cents or 0)
+        if c_cents < 0 or c_cents > total:
+            raise HTTPException(400, "split_contractor_cents must be within 0..total")
+        r_cents = total - c_cents
+        # Refund the customer portion first
+        refund_id = None
+        if r_cents > 0:
+            try:
+                refund = stripe.Refund.create(
+                    payment_intent=pi_id, amount=r_cents, reason="requested_by_customer",
+                    metadata={"job_id": job["job_id"], "dispute_id": payload.dispute_id,
+                              "flow": "dispute_split_refund"},
+                )
+                refund_id = refund.id
+            except stripe.error.StripeError as exc:
+                raise HTTPException(502, f"Split refund failed: {exc.user_message or str(exc)}")
+        # Contractor share (after 10% fee only on the contractor portion)
+        transfer_id = None
+        if c_cents > 0:
+            contractor = await db.users.find_one({"user_id": job.get("assigned_handyman_id")}, {"_id": 0})
+            if not contractor or not contractor.get("stripe_account_id"):
+                raise HTTPException(400, "Contractor has no payout account")
+            contractor_share, platform_fee = _cents_split(c_cents)
+            try:
+                transfer = stripe.Transfer.create(
+                    amount=contractor_share, currency="usd",
+                    destination=contractor["stripe_account_id"],
+                    transfer_group=f"job_{job['job_id']}",
+                    metadata={"job_id": job["job_id"], "dispute_id": payload.dispute_id,
+                              "flow": "dispute_split_release"},
+                )
+                transfer_id = transfer.id
+                await db.ledger.insert_one({
+                    "entry_id": uuid.uuid4().hex,
+                    "user_id": contractor["user_id"], "job_id": job["job_id"],
+                    "type": "dispute_split_credit",
+                    "amount_cents": contractor_share, "platform_fee_cents": platform_fee,
+                    "stripe_transfer_id": transfer.id, "created_at": now,
+                })
+            except stripe.error.StripeError as exc:
+                raise HTTPException(502, f"Split payout failed: {exc.user_message or str(exc)}")
+        await db.jobs.update_one(
+            {"job_id": job["job_id"]},
+            {"$set": {"escrow_status": "split", "resolved_at": now,
+                      "stripe_refund_id": refund_id, "stripe_transfer_id": transfer_id,
+                      "status": "resolved", "updated_at": now}},
+        )
+        outcome.update({"refund_id": refund_id, "transfer_id": transfer_id,
+                        "refunded_cents": r_cents, "released_cents": c_cents})
+    else:
+        raise HTTPException(400, "Invalid action; use 'release' | 'refund' | 'split'")
+
+    await db.disputes.update_one(
+        {"dispute_id": payload.dispute_id},
+        {"$set": {
+            "status": "resolved",
+            "resolved_at": now,
+            "resolved_by": admin.get("sub") or "admin",
+            "resolution_action": action,
+            "resolution_notes": (payload.notes or "")[:600],
+            "resolution_outcome": outcome,
+        }},
+    )
+    await db.audit_log.insert_one({
+        "log_id": uuid.uuid4().hex,
+        "admin_id": admin.get("sub") or "admin",
+        "action": "dispute.resolve",
+        "target_id": payload.dispute_id,
+        "meta": outcome,
+        "created_at": now,
+    })
+    return {"ok": True, "outcome": outcome}
 
 
 # ============ MOUNT ============

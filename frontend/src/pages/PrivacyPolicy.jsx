@@ -21,7 +21,7 @@ export default function PrivacyPolicy() {
             <ul className="list-disc list-inside space-y-1 marker:text-amber-500">
               <li><strong>Account:</strong> name, email, profile picture from Google when you sign in</li>
               <li><strong>Marketplace:</strong> job descriptions, photos you upload for AI diagnosis, chat messages</li>
-              <li><strong>Payments:</strong> card details are handled entirely by Stripe — we never see or store card numbers. We store Stripe customer IDs and receipt metadata.</li>
+              <li><strong>Payments &amp; escrow:</strong> card and bank-account details are handled entirely by Stripe &mdash; we never see or store them. We store Stripe customer IDs, PaymentIntent IDs, Transfer IDs, and the receipt metadata (job ID, amount, 90/10 split, dates) needed to run our escrow ledger. Craftsmen who onboard a payout account complete Stripe Connect Express KYC directly with Stripe; we store the resulting connected-account ID only.</li>
               <li><strong>Location:</strong> optional GPS coordinates (only if you consent when onboarding as a craftsman). All map pins are fuzzed to a ~1 km radius before display.</li>
               <li><strong>Usage:</strong> pages visited, buttons clicked, referral codes used, for product improvement.</li>
               <li><strong>Cookies:</strong> a session cookie for login, an admin cookie if you access the admin console.</li>
@@ -30,9 +30,9 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="font-heading text-2xl font-bold text-white">How we use it</h2>
             <ul className="list-disc list-inside space-y-1 marker:text-amber-500">
-              <li>Run the marketplace: matching, messaging, payments, reviews.</li>
+              <li>Run the marketplace: matching, messaging, payments, escrow releases, reviews.</li>
               <li>Provide AI features: your photos and text are sent to our LLM provider (Anthropic Claude via Emergent) to generate diagnostics.</li>
-              <li>Send transactional emails: booking confirmations, trial reminders, payment issues. We do not send marketing without your consent.</li>
+              <li>Send transactional emails: verification, booking confirmations, escrow held / release / auto-approve nudges, trial reminders, payment issues. We do not send marketing without your consent.</li>
               <li>Fraud &amp; abuse prevention.</li>
             </ul>
           </section>

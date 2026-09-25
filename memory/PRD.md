@@ -96,7 +96,24 @@
   - `POST /api/ai/gemini/chat` → Gemini 3 Flash (`gemini-3-flash-preview`) one-shot text
   - New modules: `/app/backend/storage.py`, `/app/backend/gemini_svc.py`
 
+### Legal · Milestones · Dispute Console (2026-02, ninth sprint) — this sprint
+
 ### Contractor Paywall · Escrow · Verified Email (2026-02, eighth sprint)
+- **Terms & Privacy pages** rewritten for the new payment model: platform-held escrow, 10% flat fee (90/10 split shown on every screen), 72h auto-approve, $50/mo contractor plan with 14-day trial, Stripe Connect KYC, standard vs 1% instant payout, refund routing. Legal-doc numbering renumbered end-to-end. Privacy adds explicit escrow-data + Connect-account-ID handling.
+- **Milestone escrow** (jobs ≥ $1500 up to 3 slices):
+  - `POST /api/escrow/milestones/create` — validates 1–3 items, $1500 min total, $5 min per slice
+  - `POST /api/escrow/milestones/fund` — separate PaymentIntent per milestone (metadata `flow=escrow_hold_milestone`)
+  - `POST /api/escrow/milestones/mark-complete|approve|dispute` — full lifecycle per slice
+  - `_release_milestone` → per-slice Stripe Transfer, ledger entry `type=milestone_payout_credit`
+  - Webhook handler routes `escrow_hold_milestone` PI events to `db.milestones.status`
+- **Dispute admin console**:
+  - `GET /api/admin/disputes?status=open|resolved|all` — enriched with job title, parties, amount, escrow status
+  - `POST /api/admin/disputes/resolve` with `action=release|refund|split` (split accepts `split_contractor_cents`); admin JWT via cookie **or** Bearer; every resolution writes to `db.audit_log`
+  - `/admin/disputes` React page (`AdminDisputes.jsx`): filter tabs, dispute cards with parties/amount/reason, three-option resolution modal (release / refund / split-with-slider), notes field, testids everywhere
+  - Linked from the AdminDashboard header (`admin-goto-disputes`)
+- **Verified via curl**: $1500-threshold rejection, 3-milestone create with correct 90/10 splits, individual milestone fund returning `pi_*` client secret, admin dispute list via cookie session
+
+
 - **Email verification hardening**: TTL trimmed to 24h, single-use tokens, `db.email_sends` audit log per send, try/except around every Resend call, `Resend link` button on login already wired
 - **Contractor $50/mo subscription (14-day trial)**: catalog updated (`contractor_monthly` lookup_key, $5000 unit_amount, `trial_period_days=14`); legacy `handyman_pro_monthly` retained
 - **Grandfathering**: startup migration comps every existing contractor with a 30-day `subscription_comp_until` window

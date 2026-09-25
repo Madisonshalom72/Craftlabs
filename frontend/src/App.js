@@ -30,6 +30,7 @@ import AccountRecover from "@/pages/AccountRecover";
 import VerifyEmail from "@/pages/VerifyEmail";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
+import AdminDisputes from "@/pages/AdminDisputes";
 import Brand from "@/pages/Brand";
 
 function AppRouter() {
@@ -63,6 +64,7 @@ function AppRouter() {
       <Route path="/reset" element={<ResetPassword />} />
       <Route path="/payment/success" element={<PaymentSuccess />} />
       <Route path="/payment/cancel" element={<PaymentCancel />} />
+      <Route path="/admin/disputes" element={<AdminDisputes />} />
       <Route path="/brand" element={<Brand />} />
     </Routes>
   );

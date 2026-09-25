@@ -119,6 +119,7 @@ export default function AdminDashboard() {
           </Link>
           <div className="flex items-center gap-3">
             <Link data-testid="admin-goto-licenses" to="/admin/licenses" className="hidden sm:inline text-xs font-medium text-slate-300 hover:text-amber-300 transition">License queue →</Link>
+            <Link data-testid="admin-goto-disputes" to="/admin/disputes" className="hidden sm:inline text-xs font-medium text-slate-300 hover:text-amber-300 transition">Disputes →</Link>
             <span data-testid="admin-username" className="hidden sm:inline text-xs font-mono text-slate-400">{me.username}</span>
             <button
               data-testid="admin-logout-btn"

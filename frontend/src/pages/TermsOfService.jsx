@@ -29,19 +29,23 @@ export default function TermsOfService() {
             <p>You must be at least 18 to use Craft Master Labs. Sign-in is provided via Google OAuth. You are responsible for the security of the Google account linked to your Craft Master Labs profile. You may not create accounts using automated means or misrepresent your identity.</p>
           </section>
           <section>
-            <h2 className="font-heading text-2xl font-bold text-white">4. Payments</h2>
-            <p>Payments are processed by Stripe, Inc. By making a payment, you also agree to Stripe&apos;s Terms of Service. Homeowners are charged at booking; craftsmen may subscribe to Handyman Pro for a recurring monthly fee (with a $1 trial). Subscriptions renew automatically until canceled. Refunds are handled case-by-case at our discretion and are generally issued if a service was not delivered as described.</p>
+            <h2 className="font-heading text-2xl font-bold text-white">4. Payments &amp; escrow</h2>
+            <p>Payments are processed by Stripe, Inc. By making a payment, you also agree to Stripe&apos;s Terms of Service. When a homeowner accepts a craftsman&apos;s quote, the full quoted amount is charged immediately and held by Craft Master Labs in a platform-managed Stripe balance (&ldquo;escrow&rdquo;). Funds are released to the craftsman only after the homeowner approves the completed work &mdash; or automatically after 72 hours of no response. Craft Master Labs retains a flat 10% platform fee out of every completed job; the homeowner sees no add-on to the quoted price and the craftsman receives 90%. Refunds are routed back to the original payment method for the homeowner. Partial refunds and dispute resolutions are handled by our support team on a case-by-case basis.</p>
           </section>
           <section>
-            <h2 className="font-heading text-2xl font-bold text-white">5. Subscription trial &amp; cancellation</h2>
-            <p>The $1 trial for Handyman Pro grants full access for 7 days. If you do not cancel before the trial ends, you authorize us to charge the then-current monthly rate ($49/mo). You can cancel anytime from the billing portal; access continues until the end of the paid period.</p>
+            <h2 className="font-heading text-2xl font-bold text-white">5. Contractor subscription &amp; cancellation</h2>
+            <p>Craftsmen may accept and be matched to paid jobs only while holding an active Craft Master Labs Contractor subscription. New contractors receive a 14-day free trial (card captured, no charge). After the trial we authorize the then-current monthly rate of $50 per month. You may cancel anytime from the billing portal; access continues until the end of the paid period. Failed payments trigger a 3-day grace period with automatic retry before your account downgrades to read-only. Contractors who joined Craft Master Labs before this plan launched are granted a first-month free comp on the new rate.</p>
           </section>
           <section>
-            <h2 className="font-heading text-2xl font-bold text-white">6. AI features</h2>
+            <h2 className="font-heading text-2xl font-bold text-white">6. Payouts</h2>
+            <p>Craftsmen receive payouts through Stripe Connect Express and must complete Stripe&apos;s KYC and bank/debit setup before they can be paid. Standard payouts land in the linked bank account in 2 business days at no cost. An optional &ldquo;Instant Payout&rdquo; option delivers funds to a linked debit card in approximately 30 minutes for a 1% Stripe pass-through fee. Craft Master Labs does not add any surcharge to payouts.</p>
+          </section>
+          <section>
+            <h2 className="font-heading text-2xl font-bold text-white">7. AI features</h2>
             <p>Our diagnostic and chat features use large language models. They provide estimates and suggestions only, not professional advice. Always verify safety-critical repairs (electrical, gas, structural) with a licensed professional in person.</p>
           </section>
           <section>
-            <h2 className="font-heading text-2xl font-bold text-white">7. Prohibited conduct</h2>
+            <h2 className="font-heading text-2xl font-bold text-white">8. Prohibited conduct</h2>
             <ul className="list-disc list-inside space-y-1 marker:text-amber-500">
               <li>Fraud, abuse, or bypassing platform payments to solicit off-platform</li>
               <li>Uploading unlawful, infringing, or harmful content</li>
@@ -50,19 +54,19 @@ export default function TermsOfService() {
             </ul>
           </section>
           <section>
-            <h2 className="font-heading text-2xl font-bold text-white">8. Reviews</h2>
+            <h2 className="font-heading text-2xl font-bold text-white">9. Reviews</h2>
             <p>Reviews must reflect a genuine experience. We may remove reviews that are fake, defamatory, or that reveal personal information without consent.</p>
           </section>
           <section>
-            <h2 className="font-heading text-2xl font-bold text-white">9. Limitation of liability</h2>
+            <h2 className="font-heading text-2xl font-bold text-white">10. Limitation of liability</h2>
             <p>To the maximum extent permitted by law, Craft Master Labs is not liable for indirect, incidental, or consequential damages. Our total liability for any claim is limited to the fees you paid us in the 90 days preceding the claim.</p>
           </section>
           <section>
-            <h2 className="font-heading text-2xl font-bold text-white">10. Changes</h2>
+            <h2 className="font-heading text-2xl font-bold text-white">11. Changes</h2>
             <p>We may update these Terms. Material changes will be announced by email or in-app notification. Continued use after changes means you accept them.</p>
           </section>
           <section>
-            <h2 className="font-heading text-2xl font-bold text-white">11. Contact</h2>
+            <h2 className="font-heading text-2xl font-bold text-white">12. Contact</h2>
             <p>Questions? Email <a href="mailto:loans24funding@gmail.com" className="text-amber-400 underline">loans24funding@gmail.com</a>.</p>
           </section>
         </div>
