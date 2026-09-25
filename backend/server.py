@@ -4512,7 +4512,130 @@ async def admin_resolve_dispute(
         "meta": outcome,
         "created_at": now,
     })
+    # Notify both parties (fire-and-forget, logged in email_sends)
+    asyncio.create_task(_notify_dispute_resolution(dispute, job, outcome, payload.notes))
     return {"ok": True, "outcome": outcome}
+
+
+async def _notify_dispute_resolution(dispute: dict, job: dict, outcome: dict, notes: str | None):
+    """Email both parties whenever an admin resolves a dispute."""
+    action = outcome.get("action", "resolved")
+    customer = await db.users.find_one({"user_id": dispute.get("customer_id")}, {"_id": 0})
+    contractor = await db.users.find_one({"user_id": dispute.get("contractor_id")}, {"_id": 0})
+    job_title = job.get("title") or f"Job {dispute['job_id'][:8]}"
+    total = (job.get("quoted_amount_cents") or 0) / 100
+
+    action_line = {
+        "release": f"The full quoted amount was released to your craftsman.",
+        "refund":  f"A full refund of ${total:.2f} was sent back to your original payment method.",
+        "split":   f"Funds were split: ${(outcome.get('refunded_cents') or 0)/100:.2f} refunded, ${(outcome.get('released_cents') or 0)/100:.2f} released to the craftsman.",
+    }.get(action, "Your dispute has been resolved.")
+
+    contractor_line = {
+        "release": f"You received the payout for {job_title}. Funds will land in your available balance shortly.",
+        "refund":  f"The dispute on {job_title} was resolved in the customer's favor. No payout was issued for this job.",
+        "split":   f"A partial payout of ${(outcome.get('released_cents') or 0)*0.9/100:.2f} was released for {job_title}. The remainder was refunded to the customer.",
+    }.get(action, f"Your dispute on {job_title} has been resolved.")
+
+    def _render(title: str, body: str, cta_label: str, cta_href: str) -> str:
+        return (
+            f'<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px;background:#0F172A">'
+            f'<tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#141B24;border-radius:14px;padding:28px 32px;color:#E5E7EB">'
+            f'<tr><td>'
+            f'<div style="font-weight:700;font-size:16px;color:#F59E0B;margin-bottom:14px">Craft Master Labs</div>'
+            f'<h1 style="font-size:22px;margin:0 0 10px;color:#fff">{escape(title)}</h1>'
+            f'<p style="line-height:1.6;color:#cbd5e1">{escape(body)}</p>'
+            + (f'<p style="line-height:1.6;color:#94a3b8;font-size:13px">Admin note: {escape(notes)}</p>' if notes else "")
+            + f'<p><a href="{escape(cta_href)}" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600">{escape(cta_label)}</a></p>'
+            f'<p style="font-size:12px;color:#64748b">Reference · dispute {dispute["dispute_id"][:8]}</p>'
+            f'</td></tr></table></td></tr></table>'
+        )
+
+    frontend = os.environ.get("FRONTEND_URL", "")
+    subj_customer = f"Resolution — {job_title}"
+    subj_contractor = f"Dispute resolved — {job_title}"
+
+    if customer and customer.get("email"):
+        try:
+            await send_email(
+                to=customer["email"], subject=subj_customer,
+                html=_render("Your dispute is resolved", action_line, "See job details", f"{frontend}/dashboard"),
+            )
+            await _log_email_send(customer["user_id"], customer["email"], "dispute_resolution", True)
+        except Exception as exc:
+            await _log_email_send(customer["user_id"], customer["email"], "dispute_resolution", False, str(exc))
+
+    if contractor and contractor.get("email"):
+        try:
+            await send_email(
+                to=contractor["email"], subject=subj_contractor,
+                html=_render("Dispute resolved", contractor_line, "Open earnings", f"{frontend}/handyman"),
+            )
+            await _log_email_send(contractor["user_id"], contractor["email"], "dispute_resolution", True)
+        except Exception as exc:
+            await _log_email_send(contractor["user_id"], contractor["email"], "dispute_resolution", False, str(exc))
+
+
+# ---------- Cron: 72h auto-release scan ----------
+CRON_SECRET = os.environ.get("WEBHOOK_CRON_SECRET", "")
+
+
+async def _run_auto_release() -> dict:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    released: list[str] = []
+    # Single-payment jobs
+    async for job in db.jobs.find({
+        "escrow_status": "held",
+        "auto_release_at": {"$lte": now_iso},
+        "status": "completed_by_contractor",
+    }, {"_id": 0}):
+        try:
+            await _release_escrow(job, actor="system:auto_approve")
+            released.append(job["job_id"])
+        except Exception as exc:
+            logger.warning("auto-release skipped job %s: %s", job.get("job_id"), exc)
+    # Milestones
+    milestones_released: list[str] = []
+    async for ms in db.milestones.find({
+        "status": "completed_by_contractor",
+        "auto_release_at": {"$lte": now_iso},
+    }, {"_id": 0}):
+        try:
+            await _release_milestone(ms, actor="system:auto_approve")
+            milestones_released.append(ms["milestone_id"])
+        except Exception as exc:
+            logger.warning("auto-release skipped milestone %s: %s", ms.get("milestone_id"), exc)
+    return {"released_jobs": released, "released_milestones": milestones_released}
+
+
+@api.post("/cron/escrow-auto-release")
+async def cron_escrow_auto_release(
+    request: Request,
+    background: BackgroundTasks,
+    authorization: Optional[str] = Header(None),
+    x_webhook_id: Optional[str] = Header(None, alias="X-Webhook-Id"),
+):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    if not CRON_SECRET:
+        raise HTTPException(500, "WEBHOOK_CRON_SECRET not configured")
+    provided = ""
+    if authorization and authorization.startswith("Bearer "):
+        provided = authorization[7:]
+    import hmac
+    if not hmac.compare_digest(provided, CRON_SECRET):
+        raise HTTPException(401, "Invalid cron token")
+    # Idempotency: don't run the same webhook twice within 10 minutes
+    if x_webhook_id:
+        already = await db.cron_runs.find_one({"webhook_id": x_webhook_id})
+        if already:
+            return {"ok": True, "duplicate": True}
+        await db.cron_runs.insert_one({
+            "webhook_id": x_webhook_id,
+            "cron": "escrow-auto-release",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    background.add_task(_run_auto_release)
+    return {"ok": True, "queued": True}
 
 
 # ============ MOUNT ============

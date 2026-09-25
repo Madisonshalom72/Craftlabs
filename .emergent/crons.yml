@@ -1,0 +1,8 @@
+crons:
+  - name: escrow-auto-release
+    description: "Auto-releases jobs whose 72-hour customer-approval window has expired"
+    cron: "*/15 * * * *"
+    endpoint: "{{BASE_URL}}/api/cron/escrow-auto-release"
+    method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true

@@ -96,7 +96,20 @@
   - `POST /api/ai/gemini/chat` → Gemini 3 Flash (`gemini-3-flash-preview`) one-shot text
   - New modules: `/app/backend/storage.py`, `/app/backend/gemini_svc.py`
 
-### Legal · Milestones · Dispute Console (2026-02, ninth sprint) — this sprint
+### Milestone UI · Auto-Release Cron · Dispute Emails (2026-02, tenth sprint) — this sprint
+- **Milestone frontend**: `AcceptQuoteModal.jsx` now has a "Split into milestones" toggle that appears only when `amountCents ≥ $1500`. Customer drafts 1-3 slices (label + amount), hits "Create milestone plan" → sees a fund-list where each slice has its own "Fund" button that opens the Payment Element for that PI. After funding a slice, returns to the list so the customer can fund the next one when ready.
+- **Auto-release cron**:
+  - `.emergent/crons.yml` created — `escrow-auto-release` runs every 15 min in preview (deployed cadence auto-throttles ≥ 15 min per platform rules)
+  - `WEBHOOK_CRON_SECRET` added to `backend/.env` (32-char urlsafe token)
+  - `POST /api/cron/escrow-auto-release` — Bearer-secret auth (constant-time), `X-Webhook-Id` idempotency (10-min dedupe via `db.cron_runs`), acks 2xx immediately and runs `_run_auto_release` in a `BackgroundTasks` handoff. Releases both single-payment jobs and milestones whose `auto_release_at ≤ now`.
+- **Dispute notifications**: `admin_resolve_dispute` now schedules `_notify_dispute_resolution` (fire-and-forget) which emails **both parties** with an action-specific message:
+  - **release** → customer sees "released to your craftsman"; contractor sees "you received the payout"
+  - **refund** → customer sees "full refund back to your original payment method"; contractor sees "no payout was issued for this job"
+  - **split** → both see the exact split amounts; contractor sees the 90 % they netted
+  - Admin's notes (if any) appear in both emails. Every send logs to `db.email_sends` with success/failure.
+- **Verified via curl**: cron endpoint returns 401 without token, 200 with token and enqueues work; duplicate `X-Webhook-Id` returns `{duplicate: true}`; crons.yml passes YAML shape validation.
+
+
 
 ### Contractor Paywall · Escrow · Verified Email (2026-02, eighth sprint)
 - **Terms & Privacy pages** rewritten for the new payment model: platform-held escrow, 10% flat fee (90/10 split shown on every screen), 72h auto-approve, $50/mo contractor plan with 14-day trial, Stripe Connect KYC, standard vs 1% instant payout, refund routing. Legal-doc numbering renumbered end-to-end. Privacy adds explicit escrow-data + Connect-account-ID handling.
