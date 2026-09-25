@@ -96,7 +96,28 @@
   - `POST /api/ai/gemini/chat` → Gemini 3 Flash (`gemini-3-flash-preview`) one-shot text
   - New modules: `/app/backend/storage.py`, `/app/backend/gemini_svc.py`
 
-## Backlog (P1)
+### Contractor Paywall · Escrow · Verified Email (2026-02, eighth sprint)
+- **Email verification hardening**: TTL trimmed to 24h, single-use tokens, `db.email_sends` audit log per send, try/except around every Resend call, `Resend link` button on login already wired
+- **Contractor $50/mo subscription (14-day trial)**: catalog updated (`contractor_monthly` lookup_key, $5000 unit_amount, `trial_period_days=14`); legacy `handyman_pro_monthly` retained
+- **Grandfathering**: startup migration comps every existing contractor with a 30-day `subscription_comp_until` window
+- **`_has_active_pro` upgraded**: honours comp window + 3-day past-due grace; new 402 gate message on `/api/jobs/{id}/accept`
+- **Escrow lifecycle** (backend):
+  - `POST /api/escrow/accept-quote` → creates PI with automatic_payment_methods (card+Link+ACH ≥$500), records contractor/platform split
+  - `POST /api/escrow/mark-complete` → contractor mark, starts 72h auto-approve clock
+  - `POST /api/escrow/approve` / `POST /api/escrow/dispute` → customer decides
+  - `POST /api/escrow/auto-release-scan` → admin-triggered idempotent auto-release
+  - `_release_escrow` runs Stripe Transfer (contractor 90%, platform 10%) and writes `db.ledger`
+- **Stripe Connect Express** (`POST /api/connect/onboarding-link`, `GET /api/connect/status`) — creates the account, returns hosted onboarding URL
+- **Earnings** (`GET /api/earnings`): available balance from Stripe, in-escrow from Mongo, lifetime earned/fees from ledger, last 50 ledger entries
+- **Instant Payout** (`POST /api/payouts/instant`) — Stripe Payout `method=instant` to a debit card
+- **Refunds** (`POST /api/admin/refund`, admin JWT) — full or partial refund via Stripe API
+- **Frontend components**: `AcceptQuoteModal.jsx` (Stripe Payment Element in-modal), `EarningsPanel.jsx` (balance hero, cash-out, ledger), `TrialBanner.jsx` (comp/trial/past-due/gate states)
+- **Wire-ups**: HandymanDashboard gets a new "Earnings" tab + Mark-Complete button on active jobs; CustomerDashboard gets Fund-Escrow / Approve / Dispute buttons per booking
+
+## Backlog (P0 for Phase 1 completion — requires operator action)
+- **Enable Stripe Connect** in the platform's Stripe Dashboard (test mode). Until enabled, `/connect/onboarding-link` returns a clear 502 with Stripe's instructional message.
+
+
 - Refactor `server.py` (3560+ lines) into `routes/` + `services/` + `models/`
 - Split large React pages into sub-components (CraftsmanOnboarding, AdminLicenses, CustomerDashboard, Login)
 - Remove `/api/auth/demo-login` (or gate to non-prod) before real users

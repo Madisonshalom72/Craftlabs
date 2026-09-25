@@ -12,10 +12,20 @@ CATALOG = [
     {"id": "standard_repair", "name": "Standard Repair (1-3 hrs)",       "amount": 15000, "lookup_key": "standard_repair", "tax_code": "txcd_99999999"},
     {"id": "major_project",   "name": "Major Project (Half day+)",       "amount": 32500, "lookup_key": "major_project",   "tax_code": "txcd_99999999"},
     {"id": "emergency_call",  "name": "Emergency Same-Day Service",      "amount": 50000, "lookup_key": "emergency_call",  "tax_code": "txcd_99999999"},
-    # ---- Subscription: Handyman Pro ($1 trial for 7 days, then $49/mo) ----
+    # ---- Subscription: Contractor $50/month with 14-day free trial ----
+    {
+        "id": "contractor_monthly",
+        "name": "Craft Master Labs · Contractor Plan",
+        "amount": 5000,
+        "lookup_key": "contractor_monthly",
+        "tax_code": "txcd_10103001",  # SaaS
+        "recurring": {"interval": "month"},
+        "trial_period_days": 14,
+    },
+    # ---- Legacy: Handyman Pro (grandfathered users) ----
     {
         "id": "handyman_pro",
-        "name": "Handyman Pro Membership",
+        "name": "Handyman Pro Membership (legacy)",
         "amount": 4900,
         "lookup_key": "handyman_pro_monthly",
         "tax_code": "txcd_10103001",  # SaaS

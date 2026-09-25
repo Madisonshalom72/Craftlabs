@@ -5,6 +5,8 @@ import BookingChat from "@/components/BookingChat";
 import CraftsmanOnboarding from "@/components/CraftsmanOnboarding";
 import ReferralPanel from "@/components/ReferralPanel";
 import PortfolioGallery from "@/components/PortfolioGallery";
+import TrialBanner from "@/components/TrialBanner";
+import EarningsPanel from "@/components/EarningsPanel";
 import { API, http } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -252,6 +254,8 @@ export default function HandymanDashboard() {
         {/* Referral panel */}
         <div className="mb-6">
           <ReferralPanel />
+
+          <TrialBanner />
         </div>
 
         <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-xl border border-white/8 w-fit">
@@ -266,6 +270,9 @@ export default function HandymanDashboard() {
           </button>
           <button data-testid="tab-portfolio" onClick={() => setTab("portfolio")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "portfolio" ? "bg-amber-500 text-slate-900" : "text-slate-300 hover:bg-white/5"}`}>
             Portfolio
+          </button>
+          <button data-testid="tab-earnings" onClick={() => setTab("earnings")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "earnings" ? "bg-amber-500 text-slate-900" : "text-slate-300 hover:bg-white/5"}`}>
+            Earnings
           </button>
         </div>
 
@@ -349,8 +356,37 @@ export default function HandymanDashboard() {
                     onClick={() => setChatJob(j)}
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-semibold transition"
                   >
-                    <MessageSquare className="w-3.5 h-3.5" /> Chat with {j.customer_name?.split(" ")[0]}
+                    <MessageSquare className="w-3.5 h-3.5" /> Chat
                   </button>
+                  {j.escrow_status === "held" && j.status !== "completed_by_contractor" && (
+                    <button
+                      data-testid={`complete-${j.job_id}`}
+                      onClick={async () => {
+                        if (!window.confirm("Mark this job complete? Customer has 72 h to approve or dispute.")) return;
+                        try {
+                          await http.post("/escrow/mark-complete", { job_id: j.job_id });
+                          toast.success("Marked complete. Customer will be notified.");
+                          const { data: mine } = await http.get("/jobs");
+                          setAssigned(mine.filter(x => x.assigned_handyman_id === user.user_id));
+                        } catch (e) {
+                          toast.error(e?.response?.data?.detail || "Could not mark complete");
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-craft-lime text-slate-900 text-xs font-semibold transition hover:opacity-90"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Mark complete
+                    </button>
+                  )}
+                  {j.escrow_status === "held" && j.status === "completed_by_contractor" && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono">
+                      <Clock className="w-3.5 h-3.5" /> Awaiting approval
+                    </span>
+                  )}
+                  {j.escrow_status === "released" && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Paid
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -398,6 +434,10 @@ export default function HandymanDashboard() {
 
         {tab === "portfolio" && (
           <PortfolioGallery />
+        )}
+
+        {tab === "earnings" && (
+          <EarningsPanel />
         )}
       </div>
 

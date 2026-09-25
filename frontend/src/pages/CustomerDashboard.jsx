@@ -6,10 +6,12 @@ import AIChat from "@/components/AIChat";
 import BookingChat from "@/components/BookingChat";
 import ReviewModal from "@/components/ReviewModal";
 import ReferralPanel from "@/components/ReferralPanel";
+import AcceptQuoteModal from "@/components/AcceptQuoteModal";
 import { http } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
   Sparkles, Star, MapPin, CheckCircle2, Loader2, Briefcase, Clock, DollarSign, MessageSquare,
+  Lock, ShieldCheck, AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,6 +34,8 @@ export default function CustomerDashboard() {
   const [tab, setTab] = useState("diagnose");
   const [chatJob, setChatJob] = useState(null);
   const [reviewJob, setReviewJob] = useState(null);
+  const [escrowJob, setEscrowJob] = useState(null);
+  const [busyJob, setBusyJob] = useState(null);
   const [reviewedIds, setReviewedIds] = useState({});
   const [maxDistance, setMaxDistance] = useState(15);
   const [currentJobId, setCurrentJobId] = useState(null);
@@ -358,6 +362,66 @@ export default function CustomerDashboard() {
                         <Star className="w-3.5 h-3.5" /> Leave Review
                       </button>
                     ) : null}
+                    {/* Escrow controls */}
+                    {j.assigned_handyman_id && !j.escrow_status && (
+                      <button
+                        data-testid={`fund-escrow-${j.job_id}`}
+                        onClick={() => setEscrowJob(j)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-craft-lime/10 border border-craft-lime/40 text-craft-lime text-xs font-semibold hover:bg-craft-lime/20 transition"
+                      >
+                        <Lock className="w-3.5 h-3.5" /> Fund escrow
+                      </button>
+                    )}
+                    {j.escrow_status === "held" && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-mono">
+                        <Lock className="w-3.5 h-3.5" /> ${((j.quoted_amount_cents||0)/100).toFixed(2)} in escrow
+                      </span>
+                    )}
+                    {j.status === "completed_by_contractor" && j.escrow_status === "held" && (
+                      <>
+                        <button
+                          data-testid={`approve-${j.job_id}`}
+                          disabled={busyJob === j.job_id}
+                          onClick={async () => {
+                            setBusyJob(j.job_id);
+                            try {
+                              await http.post("/escrow/approve", { job_id: j.job_id });
+                              toast.success("Payment released to your contractor");
+                              refreshBookings();
+                            } catch (e) {
+                              toast.error(e?.response?.data?.detail || "Approve failed");
+                            } finally { setBusyJob(null); }
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-slate-900 text-xs font-semibold transition disabled:opacity-50"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" /> Approve payout
+                        </button>
+                        <button
+                          data-testid={`dispute-${j.job_id}`}
+                          disabled={busyJob === j.job_id}
+                          onClick={async () => {
+                            const reason = window.prompt("What's the issue? (kept confidential)");
+                            if (!reason) return;
+                            setBusyJob(j.job_id);
+                            try {
+                              await http.post("/escrow/dispute", { job_id: j.job_id, reason });
+                              toast("Dispute opened. Our team will reach out shortly.");
+                              refreshBookings();
+                            } catch (e) {
+                              toast.error(e?.response?.data?.detail || "Dispute failed");
+                            } finally { setBusyJob(null); }
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-red-500/30 hover:border-red-500/60 text-red-300 text-xs font-semibold transition disabled:opacity-50"
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5" /> Dispute
+                        </button>
+                      </>
+                    )}
+                    {j.escrow_status === "released" && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Paid out
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -365,6 +429,16 @@ export default function CustomerDashboard() {
           </div>
         )}
       </div>
+
+      {escrowJob && (
+        <AcceptQuoteModal
+          jobId={escrowJob.job_id}
+          amountCents={escrowJob.quoted_amount_cents || (TIER_META[escrowJob.tier]?.price ? TIER_META[escrowJob.tier].price * 100 : 20000)}
+          open={!!escrowJob}
+          onClose={() => setEscrowJob(null)}
+          onSuccess={() => { setEscrowJob(null); refreshBookings(); }}
+        />
+      )}
 
       {chatJob && (
         <BookingChat job={chatJob} currentUser={user} onClose={() => setChatJob(null)} />

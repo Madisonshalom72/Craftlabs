@@ -427,7 +427,7 @@ from collections import deque as _deque
 _signup_attempts: Dict[str, _deque] = defaultdict(lambda: _deque(maxlen=10))
 USER_LOGIN_MAX_FAILS = 5
 USER_LOGIN_WINDOW_SECONDS = 15 * 60
-EMAIL_VERIFY_TTL_HOURS = 48
+EMAIL_VERIFY_TTL_HOURS = 24
 PASSWORD_RESET_TTL_MINUTES = 60
 EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
@@ -491,6 +491,18 @@ async def _issue_user_session(user: dict, response: Response) -> str:
     return session_token
 
 
+async def _log_email_send(user_id: str | None, email: str, kind: str, ok: bool, error: str | None = None) -> None:
+    """Every send is logged for admin traceability."""
+    try:
+        await db.email_sends.insert_one({
+            "user_id": user_id, "email": email, "kind": kind,
+            "ok": ok, "error": (error or "")[:400],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
+
+
 async def _send_verify_email(user: dict, token: str) -> None:
     frontend = os.environ["FRONTEND_URL"]
     verify_url = f"{frontend}/verify?token={token}"
@@ -501,12 +513,18 @@ async def _send_verify_email(user: dict, token: str) -> None:
         f'<tr><td>'
         f'<div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">Craft Master Labs<span style="color:#0F172A"> AI</span></div>'
         f'<h1 style="font-size:22px;margin:0 0 10px">Welcome, {escape(user.get("name") or "there")}!</h1>'
-        f'<p style="line-height:1.6">Confirm your email to activate your Craft Master Labs account. This link expires in 48 hours.</p>'
+        f'<p style="line-height:1.6">Confirm your email to activate your Craft Master Labs account. This link is single-use and expires in 24 hours.</p>'
         f'<p><a href="{escape(verify_url)}" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600">Verify email</a></p>'
         f'<p style="font-size:12px;color:#6B7280">Didn&rsquo;t create an account? Ignore this email.</p>'
         f'</td></tr></table></td></tr></table>'
     )
-    await send_email(to=user["email"], subject=subject, html=html)
+    try:
+        await send_email(to=user["email"], subject=subject, html=html)
+        await _log_email_send(user.get("user_id"), user["email"], "verify", True)
+        logger.info("verify email sent to %s user_id=%s", user["email"], user.get("user_id"))
+    except Exception as exc:
+        await _log_email_send(user.get("user_id"), user["email"], "verify", False, str(exc))
+        logger.error("verify email failed for %s: %s", user["email"], exc)
 
 
 async def _send_password_reset_email(email: str, token: str, name: str) -> None:
@@ -1174,6 +1192,31 @@ async def _startup_seed_admin():
 
 
 @app.on_event("startup")
+async def _startup_grandfather_contractors():
+    """One-off migration: give existing contractors a 30-day comp on the new $50/mo plan."""
+    try:
+        cutoff_iso = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+        result = await db.users.update_many(
+            {
+                "role": "handyman",
+                "subscription_comp_until": {"$exists": False},
+                "subscription_comp_done": {"$ne": True},
+            },
+            {
+                "$set": {
+                    "subscription_comp_until": cutoff_iso,
+                    "subscription_comp_done": True,
+                    "subscription_comp_granted_at": datetime.now(timezone.utc).isoformat(),
+                },
+            },
+        )
+        if result.modified_count:
+            logger.info("grandfathered %d existing contractors with 30-day comp", result.modified_count)
+    except Exception as exc:
+        logger.warning("grandfather migration failed (non-fatal): %s", exc)
+
+
+@app.on_event("startup")
 async def _startup_init_storage():
     try:
         init_storage()
@@ -1732,11 +1775,11 @@ async def get_job(job_id: str):
 async def accept_job(job_id: str, session_token: Optional[str] = Cookie(None),
                      authorization: Optional[str] = Header(None)):
     user = await get_current_user(session_token, authorization)
-    # Gate: only Pro handymen can accept leads
+    # Gate: only contractors with active subscription (or comp/trial) can accept leads
     if user.get("role") == "handyman" and not await _has_active_pro(user["user_id"]):
         raise HTTPException(
             status_code=402,
-            detail="Handyman Pro membership required to accept leads. Start your $1 trial.",
+            detail="Contractor subscription required. Start your 14-day free trial ($50/mo after).",
         )
     j = await db.jobs.find_one({"job_id": job_id}, {"_id": 0})
     if not j:
@@ -2351,6 +2394,9 @@ async def stripe_webhook(request: Request):
     except stripe.error.SignatureVerificationError:
         raise HTTPException(400, "Invalid signature")
     obj, t = event["data"]["object"], event["type"]
+    # Escrow PaymentIntent lifecycle
+    if t.startswith("payment_intent."):
+        await _handle_escrow_pi_event(obj, t)
     if t == "checkout.session.completed":
         await db.payment_transactions.update_one(
             {"session_id": obj["id"], "payment_status": {"$ne": "paid"}},
@@ -2731,10 +2777,34 @@ async def _get_subscription(user_id: str) -> Optional[dict]:
 
 
 async def _has_active_pro(user_id: str) -> bool:
+    """Contractor is 'active' when they have a subscription in trialing/active/past_due
+    (past_due gets a 3-day dunning grace) OR they are grandfathered under a free comp."""
+    # Grandfather comp: any handyman flagged manually or created before the feature ship date.
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if user and user.get("subscription_comp_until"):
+        try:
+            until = datetime.fromisoformat(user["subscription_comp_until"])
+            if until.tzinfo is None:
+                until = until.replace(tzinfo=timezone.utc)
+            if until > datetime.now(timezone.utc):
+                return True
+        except Exception:
+            pass
     s = await _get_subscription(user_id)
     if not s:
         return False
-    return s.get("status") in ACTIVE_SUB_STATUSES
+    if s.get("status") in ACTIVE_SUB_STATUSES:
+        return True
+    if s.get("status") == "past_due":
+        # 3-day grace after first failed payment
+        try:
+            past_due_at = datetime.fromisoformat(s.get("past_due_at", ""))
+            if past_due_at.tzinfo is None:
+                past_due_at = past_due_at.replace(tzinfo=timezone.utc)
+            return (datetime.now(timezone.utc) - past_due_at) < timedelta(days=3)
+        except Exception:
+            return False
+    return False
 
 
 @api.get("/subscriptions/me")
@@ -2742,14 +2812,18 @@ async def my_subscription(session_token: Optional[str] = Cookie(None),
                           authorization: Optional[str] = Header(None)):
     user = await get_current_user(session_token, authorization)
     sub = await _get_subscription(user["user_id"])
+    # Comp window (grandfathered contractors)
+    comp_until = None
+    if user.get("subscription_comp_until"):
+        comp_until = user["subscription_comp_until"]
     return {
-        "plan": "handyman_pro_monthly",
-        "trial_days": TRIAL_DAYS,
-        "trial_amount": TRIAL_AMOUNT_CENTS,
-        "monthly_amount": 4900,
+        "plan": "contractor_monthly",
+        "trial_days": 14,
+        "monthly_amount": 5000,
         "currency": "usd",
         "subscription": sub,
-        "is_active": bool(sub and sub.get("status") in ACTIVE_SUB_STATUSES),
+        "comp_until": comp_until,
+        "is_active": await _has_active_pro(user["user_id"]),
     }
 
 
@@ -2757,20 +2831,15 @@ async def my_subscription(session_token: Optional[str] = Cookie(None),
 async def sub_checkout(req: SubCheckoutRequest,
                        session_token: Optional[str] = Cookie(None),
                        authorization: Optional[str] = Header(None)):
-    """Start a $1 trial → $49/mo subscription checkout.
-
-    Stripe pattern: paid trial via `trial_period_days` + `add_invoice_items` (one-off
-    $1 line item added to the first invoice). After trial, the monthly price recurs.
-    """
+    """Start a 14-day free trial → $50/mo Contractor subscription (card captured, no charge yet)."""
     user = await get_current_user(session_token, authorization)
     if user.get("role") != "handyman":
-        raise HTTPException(403, "Only handymen can subscribe to Pro")
-    prices = stripe.Price.list(lookup_keys=["handyman_pro_monthly"], active=True, limit=1).data
+        raise HTTPException(403, "Only contractors can subscribe")
+    prices = stripe.Price.list(lookup_keys=["contractor_monthly"], active=True, limit=1).data
     if not prices:
         raise HTTPException(500, "Subscription price not configured. Run setup_stripe.py.")
     price = prices[0]
 
-    # Get or create Stripe customer for this user
     existing_sub = await _get_subscription(user["user_id"])
     if existing_sub and existing_sub.get("stripe_customer_id"):
         customer_id = existing_sub["stripe_customer_id"]
@@ -2781,45 +2850,20 @@ async def sub_checkout(req: SubCheckoutRequest,
         )
         customer_id = customer.id
 
-    # Create one-off $1 trial fee product/price (idempotent lookup)
-    trial_prices = stripe.Price.list(lookup_keys=["handyman_pro_trial_fee"], active=True, limit=1).data
-    if trial_prices:
-        trial_price = trial_prices[0]
-    else:
-        trial_product = stripe.Product.create(
-            name="Handyman Pro — 7-day trial",
-            metadata={"managed_by": "emergent", "emergent_product_id": "handyman_pro_trial"},
-        )
-        trial_price = stripe.Price.create(
-            product=trial_product.id, unit_amount=TRIAL_AMOUNT_CENTS,
-            currency="usd", lookup_key="handyman_pro_trial_fee", transfer_lookup_key=True,
-        )
-
     session = stripe.checkout.Session.create(
         customer=customer_id,
         mode="subscription",
         line_items=[{"price": price.id, "quantity": 1}],
         subscription_data={
-            "trial_period_days": TRIAL_DAYS,
-            "metadata": {"user_id": user["user_id"], "plan": "handyman_pro_monthly"},
+            "trial_period_days": 14,
+            "metadata": {"user_id": user["user_id"], "plan": "contractor_monthly"},
         },
-        allow_promotion_codes=True,
-        # The $1 trial fee: added to the first invoice as a one-off item
         payment_method_collection="always",
+        allow_promotion_codes=True,
         success_url=f"{req.origin_url}/pro/success?session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=f"{req.origin_url}/pro?cancelled=1",
-        metadata={"user_id": user["user_id"], "flow": "handyman_pro"},
+        metadata={"user_id": user["user_id"], "flow": "contractor_monthly"},
     )
-    # Attach the $1 trial fee as an invoice item on the customer, so it appears on the first invoice
-    try:
-        stripe.InvoiceItem.create(
-            customer=customer_id, price=trial_price.id,
-            description="Handyman Pro — 7-day trial access",
-            metadata={"trial_fee": "true", "user_id": user["user_id"]},
-        )
-    except stripe.error.StripeError as exc:
-        logger.warning("Failed to attach trial fee invoice item: %s", exc)
-
     return {"checkout_url": session.url, "session_id": session.id}
 
 
@@ -3535,6 +3579,480 @@ async def ai_gemini_chat(
         logging.getLogger(__name__).exception("gemini text failed")
         raise HTTPException(502, f"Gemini call failed: {exc}")
     return {"text": text, "model": "gemini-3-flash-preview"}
+
+
+# ============================================================================
+# ESCROW · STRIPE CONNECT · EARNINGS · PAYOUTS
+# ============================================================================
+PLATFORM_FEE_BPS = 1000  # 10.00% platform take
+ACH_MIN_AMOUNT_CENTS = 50000  # $500 threshold for ACH availability
+AUTO_APPROVE_HOURS = 72
+
+
+def _cents_split(total_cents: int) -> tuple[int, int]:
+    """Return (contractor_amount_cents, platform_fee_cents) for a 10% fee."""
+    fee = (total_cents * PLATFORM_FEE_BPS) // 10000
+    return total_cents - fee, fee
+
+
+class AcceptQuoteRequest(BaseModel):
+    job_id: str
+    amount_cents: int  # quoted total in cents (final price the customer sees)
+
+
+@api.post("/escrow/accept-quote")
+async def escrow_accept_quote(
+    payload: AcceptQuoteRequest,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Customer accepts a contractor's quote → creates a Stripe PaymentIntent that
+    holds funds in the platform's balance ('escrow') via automatic_payment_methods.
+    Returns the client_secret for the Payment Element on the frontend."""
+    user = await get_current_user(session_token, authorization)
+    if payload.amount_cents < 500:
+        raise HTTPException(400, "Job total must be at least $5")
+    job = await db.jobs.find_one({"job_id": payload.job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if job.get("customer_id") != user["user_id"]:
+        raise HTTPException(403, "Not your job")
+    if not job.get("assigned_handyman_id"):
+        raise HTTPException(400, "Assign a contractor to the job first")
+    if job.get("escrow_status") in ("held", "released", "refunded"):
+        raise HTTPException(409, f"Escrow already {job['escrow_status']}")
+
+    # Which payment methods are available for this amount
+    pm_types = ["card", "link"]
+    if payload.amount_cents >= ACH_MIN_AMOUNT_CENTS:
+        pm_types.append("us_bank_account")
+
+    contractor_share, platform_fee = _cents_split(payload.amount_cents)
+
+    try:
+        pi = stripe.PaymentIntent.create(
+            amount=payload.amount_cents,
+            currency="usd",
+            automatic_payment_methods={"enabled": True, "allow_redirects": "always"},
+            metadata={
+                "job_id": payload.job_id, "customer_id": user["user_id"],
+                "contractor_id": job["assigned_handyman_id"],
+                "contractor_share_cents": str(contractor_share),
+                "platform_fee_cents": str(platform_fee),
+                "flow": "escrow_hold",
+            },
+            description=f"Craft Master Labs · Job {payload.job_id[:8]}",
+        )
+    except stripe.error.StripeError as exc:
+        logger.error("PI create failed: %s", exc)
+        raise HTTPException(502, f"Payment init failed: {exc.user_message or str(exc)}")
+
+    await db.jobs.update_one(
+        {"job_id": payload.job_id},
+        {"$set": {
+            "quoted_amount_cents": payload.amount_cents,
+            "contractor_share_cents": contractor_share,
+            "platform_fee_cents": platform_fee,
+            "stripe_payment_intent_id": pi.id,
+            "escrow_status": "pending",  # → 'held' on PI succeeded webhook
+            "status": "quote_accepted",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    return {
+        "client_secret": pi.client_secret,
+        "payment_intent_id": pi.id,
+        "amount_cents": payload.amount_cents,
+        "contractor_share_cents": contractor_share,
+        "platform_fee_cents": platform_fee,
+        "payment_method_types": pm_types,
+        "publishable_key": os.environ.get("STRIPE_PUBLISHABLE_KEY", ""),
+    }
+
+
+class JobIdRequest(BaseModel):
+    job_id: str
+    reason: Optional[str] = None
+
+
+@api.post("/escrow/mark-complete")
+async def escrow_mark_complete(
+    payload: JobIdRequest,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Contractor marks job complete. Starts the 72-hour auto-approve timer."""
+    user = await get_current_user(session_token, authorization)
+    job = await db.jobs.find_one({"job_id": payload.job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if job.get("assigned_handyman_id") != user["user_id"]:
+        raise HTTPException(403, "Only the assigned contractor can mark this complete")
+    if job.get("escrow_status") != "held":
+        raise HTTPException(400, "Funds must be in escrow before marking complete")
+    now = datetime.now(timezone.utc)
+    auto_at = now + timedelta(hours=AUTO_APPROVE_HOURS)
+    await db.jobs.update_one(
+        {"job_id": payload.job_id},
+        {"$set": {
+            "status": "completed_by_contractor",
+            "completed_at": now.isoformat(),
+            "auto_release_at": auto_at.isoformat(),
+            "updated_at": now.isoformat(),
+        }},
+    )
+    return {"ok": True, "auto_release_at": auto_at.isoformat()}
+
+
+async def _release_escrow(job: dict, actor: str) -> dict:
+    """Transfer 90% to the contractor's Connect account, keep 10% as platform fee."""
+    if job.get("escrow_status") != "held":
+        raise HTTPException(400, f"Cannot release; escrow status = {job.get('escrow_status')}")
+    contractor = await db.users.find_one({"user_id": job["assigned_handyman_id"]}, {"_id": 0})
+    if not contractor or not contractor.get("stripe_account_id"):
+        raise HTTPException(400, "Contractor has not connected a Stripe payout account")
+
+    contractor_share = int(job.get("contractor_share_cents") or 0)
+    if contractor_share <= 0:
+        raise HTTPException(400, "Invalid contractor share amount")
+
+    try:
+        transfer = stripe.Transfer.create(
+            amount=contractor_share, currency="usd",
+            destination=contractor["stripe_account_id"],
+            source_transaction=None,
+            transfer_group=f"job_{job['job_id']}",
+            metadata={"job_id": job["job_id"], "actor": actor, "flow": "escrow_release"},
+        )
+    except stripe.error.StripeError as exc:
+        logger.error("Transfer failed: %s", exc)
+        raise HTTPException(502, f"Payout to contractor failed: {exc.user_message or str(exc)}")
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.jobs.update_one(
+        {"job_id": job["job_id"]},
+        {"$set": {
+            "escrow_status": "released",
+            "released_at": now, "released_by": actor,
+            "stripe_transfer_id": transfer.id,
+            "status": "paid",
+            "updated_at": now,
+        }},
+    )
+    await db.ledger.insert_one({
+        "entry_id": uuid.uuid4().hex,
+        "user_id": contractor["user_id"], "job_id": job["job_id"],
+        "type": "payout_credit", "amount_cents": contractor_share,
+        "platform_fee_cents": int(job.get("platform_fee_cents") or 0),
+        "stripe_transfer_id": transfer.id,
+        "created_at": now,
+    })
+    return {"ok": True, "transfer_id": transfer.id, "amount_cents": contractor_share}
+
+
+@api.post("/escrow/approve")
+async def escrow_approve(
+    payload: JobIdRequest,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Customer approves the work → releases funds to contractor immediately."""
+    user = await get_current_user(session_token, authorization)
+    job = await db.jobs.find_one({"job_id": payload.job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if job.get("customer_id") != user["user_id"]:
+        raise HTTPException(403, "Only the customer can approve payment")
+    return await _release_escrow(job, actor=f"customer:{user['user_id']}")
+
+
+@api.post("/escrow/dispute")
+async def escrow_dispute(
+    payload: JobIdRequest,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Customer disputes the work → freezes funds pending admin review."""
+    user = await get_current_user(session_token, authorization)
+    job = await db.jobs.find_one({"job_id": payload.job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if job.get("customer_id") != user["user_id"]:
+        raise HTTPException(403, "Only the customer can dispute")
+    if job.get("escrow_status") != "held":
+        raise HTTPException(400, "Funds not in escrow")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.jobs.update_one(
+        {"job_id": payload.job_id},
+        {"$set": {
+            "escrow_status": "disputed",
+            "dispute_reason": (payload.reason or "")[:1000],
+            "disputed_at": now, "status": "disputed", "updated_at": now,
+        }},
+    )
+    await db.disputes.insert_one({
+        "dispute_id": uuid.uuid4().hex, "job_id": payload.job_id,
+        "customer_id": user["user_id"], "contractor_id": job.get("assigned_handyman_id"),
+        "reason": (payload.reason or "")[:1000], "status": "open",
+        "created_at": now,
+    })
+    return {"ok": True}
+
+
+@api.post("/escrow/auto-release-scan")
+async def escrow_auto_release_scan(
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Idempotent scan: releases any job whose 72-hour window has passed."""
+    # Simple auth: admin bearer OR the internal cron caller
+    is_admin = False
+    if authorization and authorization.startswith("Bearer "):
+        try:
+            _admin_decode_token(authorization[7:])
+            is_admin = True
+        except Exception:
+            is_admin = False
+    if not is_admin:
+        raise HTTPException(403, "Admin only")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    released: list[str] = []
+    async for job in db.jobs.find({
+        "escrow_status": "held",
+        "auto_release_at": {"$lte": now_iso},
+        "status": "completed_by_contractor",
+    }, {"_id": 0}):
+        try:
+            await _release_escrow(job, actor="system:auto_approve")
+            released.append(job["job_id"])
+        except HTTPException as exc:
+            logger.warning("auto-release skipped job %s: %s", job.get("job_id"), exc.detail)
+    return {"released": released, "count": len(released)}
+
+
+# ---------- Stripe Connect (Express) ----------
+class ConnectOnboardingRequest(BaseModel):
+    origin_url: str
+
+
+@api.post("/connect/onboarding-link")
+async def connect_onboarding_link(
+    payload: ConnectOnboardingRequest,
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Create or reuse a Connect Express account for a contractor and return the
+    onboarding URL to redirect them to."""
+    user = await get_current_user(session_token, authorization)
+    if user.get("role") != "handyman":
+        raise HTTPException(403, "Only contractors need a payout account")
+    account_id = user.get("stripe_account_id")
+    if not account_id:
+        try:
+            acct = stripe.Account.create(
+                type="express",
+                country="US",
+                email=user["email"],
+                capabilities={"transfers": {"requested": True}, "card_payments": {"requested": False}},
+                business_type="individual",
+                metadata={"user_id": user["user_id"]},
+            )
+            account_id = acct.id
+            await db.users.update_one(
+                {"user_id": user["user_id"]},
+                {"$set": {"stripe_account_id": account_id,
+                          "stripe_account_created_at": datetime.now(timezone.utc).isoformat()}},
+            )
+        except stripe.error.StripeError as exc:
+            raise HTTPException(502, f"Connect account create failed: {exc.user_message or str(exc)}")
+    try:
+        link = stripe.AccountLink.create(
+            account=account_id, type="account_onboarding",
+            refresh_url=f"{payload.origin_url}/handyman?connect=refresh",
+            return_url=f"{payload.origin_url}/handyman?connect=done",
+        )
+    except stripe.error.StripeError as exc:
+        raise HTTPException(502, f"Account link failed: {exc.user_message or str(exc)}")
+    return {"url": link.url, "account_id": account_id}
+
+
+@api.get("/connect/status")
+async def connect_status(
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Return the contractor's Connect readiness (payouts_enabled, requirements)."""
+    user = await get_current_user(session_token, authorization)
+    if not user.get("stripe_account_id"):
+        return {"connected": False, "payouts_enabled": False, "requirements": []}
+    try:
+        acct = stripe.Account.retrieve(user["stripe_account_id"])
+    except stripe.error.StripeError as exc:
+        raise HTTPException(502, f"Account fetch failed: {exc}")
+    return {
+        "connected": True,
+        "account_id": acct.id,
+        "charges_enabled": bool(acct.charges_enabled),
+        "payouts_enabled": bool(acct.payouts_enabled),
+        "details_submitted": bool(acct.details_submitted),
+        "requirements": (acct.requirements.currently_due or []) if getattr(acct, "requirements", None) else [],
+    }
+
+
+# ---------- Earnings & payouts ----------
+@api.get("/earnings")
+async def earnings_summary(
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Contractor earnings: available (Stripe balance), in-escrow (jobs held),
+    lifetime earned, platform fees paid."""
+    user = await get_current_user(session_token, authorization)
+    if user.get("role") != "handyman":
+        raise HTTPException(403, "Contractors only")
+
+    # In-escrow (held jobs where this contractor is assigned)
+    in_escrow_pipeline = [
+        {"$match": {"assigned_handyman_id": user["user_id"], "escrow_status": "held"}},
+        {"$group": {"_id": None, "total": {"$sum": "$contractor_share_cents"}}},
+    ]
+    r = await db.jobs.aggregate(in_escrow_pipeline).to_list(1)
+    in_escrow = int(r[0]["total"]) if r else 0
+
+    # Lifetime
+    lifetime_pipeline = [
+        {"$match": {"user_id": user["user_id"], "type": "payout_credit"}},
+        {"$group": {"_id": None, "earned": {"$sum": "$amount_cents"},
+                                 "fees": {"$sum": "$platform_fee_cents"}}},
+    ]
+    r2 = await db.ledger.aggregate(lifetime_pipeline).to_list(1)
+    lifetime_earned = int(r2[0]["earned"]) if r2 else 0
+    lifetime_fees   = int(r2[0]["fees"])   if r2 else 0
+
+    # Available: Stripe balance on the connected account
+    available_cents = 0
+    pending_cents = 0
+    if user.get("stripe_account_id"):
+        try:
+            bal = stripe.Balance.retrieve(stripe_account=user["stripe_account_id"])
+            for e in (bal.available or []):
+                if e.currency == "usd":
+                    available_cents = e.amount
+            for e in (bal.pending or []):
+                if e.currency == "usd":
+                    pending_cents = e.amount
+        except stripe.error.StripeError as exc:
+            logger.warning("balance fetch failed: %s", exc)
+
+    ledger = await db.ledger.find(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+
+    return {
+        "available_cents": available_cents,
+        "stripe_pending_cents": pending_cents,
+        "in_escrow_cents": in_escrow,
+        "lifetime_earned_cents": lifetime_earned,
+        "lifetime_fees_cents": lifetime_fees,
+        "currency": "usd",
+        "ledger": ledger,
+    }
+
+
+@api.post("/payouts/instant")
+async def payouts_instant(
+    session_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Send available balance to a linked debit card in ~30 min (1% Stripe fee)."""
+    user = await get_current_user(session_token, authorization)
+    if not user.get("stripe_account_id"):
+        raise HTTPException(400, "Connect a payout account first")
+    try:
+        bal = stripe.Balance.retrieve(stripe_account=user["stripe_account_id"])
+    except stripe.error.StripeError as exc:
+        raise HTTPException(502, f"Balance check failed: {exc}")
+    amount = 0
+    for e in (bal.available or []):
+        if e.currency == "usd":
+            amount = e.amount
+    if amount <= 0:
+        raise HTTPException(400, "No available balance to pay out")
+    try:
+        payout = stripe.Payout.create(
+            amount=amount, currency="usd", method="instant",
+            metadata={"flow": "instant_payout", "user_id": user["user_id"]},
+            stripe_account=user["stripe_account_id"],
+        )
+    except stripe.error.StripeError as exc:
+        raise HTTPException(502, f"Instant payout failed: {exc.user_message or str(exc)}")
+    return {"payout_id": payout.id, "amount_cents": amount, "arrival_date": payout.arrival_date}
+
+
+# ---------- Refunds ----------
+class RefundRequest(BaseModel):
+    job_id: str
+    amount_cents: Optional[int] = None  # None = full
+    reason: Optional[str] = None
+
+
+@api.post("/admin/refund")
+async def admin_refund(
+    payload: RefundRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Admin-only full or partial refund to the customer's original payment method."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Admin token required")
+    try:
+        _admin_decode_token(authorization[7:])
+    except Exception:
+        raise HTTPException(403, "Invalid admin token")
+    job = await db.jobs.find_one({"job_id": payload.job_id}, {"_id": 0})
+    if not job or not job.get("stripe_payment_intent_id"):
+        raise HTTPException(404, "Job has no payment to refund")
+    if job.get("escrow_status") == "released":
+        raise HTTPException(400, "Funds already released to contractor — cannot refund from platform")
+    kwargs = {"payment_intent": job["stripe_payment_intent_id"],
+              "reason": "requested_by_customer",
+              "metadata": {"job_id": payload.job_id, "admin_reason": (payload.reason or "")[:200]}}
+    if payload.amount_cents:
+        kwargs["amount"] = int(payload.amount_cents)
+    try:
+        refund = stripe.Refund.create(**kwargs)
+    except stripe.error.StripeError as exc:
+        raise HTTPException(502, f"Refund failed: {exc.user_message or str(exc)}")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.jobs.update_one(
+        {"job_id": payload.job_id},
+        {"$set": {"escrow_status": "refunded", "refunded_at": now,
+                  "stripe_refund_id": refund.id, "status": "refunded", "updated_at": now}},
+    )
+    return {"ok": True, "refund_id": refund.id, "amount_cents": refund.amount}
+
+
+# ---------- Webhook additions for escrow lifecycle ----------
+async def _handle_escrow_pi_event(obj: dict, event_type: str):
+    """Update job.escrow_status based on PI lifecycle."""
+    md = obj.get("metadata") or {}
+    if md.get("flow") != "escrow_hold":
+        return
+    job_id = md.get("job_id")
+    if not job_id:
+        return
+    if event_type == "payment_intent.succeeded":
+        await db.jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {"escrow_status": "held", "status": "funded",
+                      "funded_at": datetime.now(timezone.utc).isoformat(),
+                      "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+    elif event_type in ("payment_intent.payment_failed", "payment_intent.canceled"):
+        await db.jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {"escrow_status": "failed", "status": "payment_failed",
+                      "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
 
 
 # ============ MOUNT ============
