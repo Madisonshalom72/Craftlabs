@@ -4063,6 +4063,13 @@ async def _handle_escrow_pi_event(obj: dict, event_type: str):
                 {"$set": {"status": "held", "funded_at": datetime.now(timezone.utc).isoformat(),
                           "updated_at": datetime.now(timezone.utc).isoformat()}},
             )
+            # Nudge the contractor (+ customer) that this slice is funded and work can start.
+            try:
+                ms_fresh = await db.milestones.find_one({"milestone_id": ms_id}, {"_id": 0})
+                if ms_fresh:
+                    await _notify_milestone_funded(ms_fresh)
+            except Exception as exc:
+                logger.warning("milestone-funded notify failed for %s: %s", ms_id, exc)
         elif event_type in ("payment_intent.payment_failed", "payment_intent.canceled"):
             await db.milestones.update_one(
                 {"milestone_id": ms_id},
@@ -4574,6 +4581,85 @@ async def _notify_dispute_resolution(dispute: dict, job: dict, outcome: dict, no
             await _log_email_send(contractor["user_id"], contractor["email"], "dispute_resolution", True)
         except Exception as exc:
             await _log_email_send(contractor["user_id"], contractor["email"], "dispute_resolution", False, str(exc))
+
+
+async def _notify_milestone_funded(ms: dict) -> None:
+    """When a milestone PaymentIntent succeeds, tell both sides so the contractor can start."""
+    job = await db.jobs.find_one({"job_id": ms.get("job_id")}, {"_id": 0}) or {}
+    contractor = await db.users.find_one({"user_id": job.get("assigned_handyman_id")}, {"_id": 0})
+    customer = await db.users.find_one({"user_id": job.get("customer_id")}, {"_id": 0})
+    slice_num = int(ms.get("index", 0)) + 1
+    label = ms.get("label") or f"Milestone {slice_num}"
+    amount = (ms.get("amount_cents") or 0) / 100
+    job_title = job.get("title") or f"Job {(ms.get('job_id') or '')[:8]}"
+    frontend = os.environ.get("FRONTEND_URL", "")
+
+    def _render(headline: str, sub: str, cta_label: str, cta_href: str) -> str:
+        return (
+            f'<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px;background:#0F172A">'
+            f'<tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#141B24;border-radius:14px;padding:28px 32px;color:#E5E7EB">'
+            f'<tr><td>'
+            f'<div style="font-weight:700;font-size:16px;color:#F59E0B;margin-bottom:14px">Craft Master Labs</div>'
+            f'<h1 style="font-size:22px;margin:0 0 10px;color:#fff">{escape(headline)}</h1>'
+            f'<p style="line-height:1.6;color:#cbd5e1">{escape(sub)}</p>'
+            f'<p style="line-height:1.6;color:#94a3b8;font-size:14px"><strong style="color:#e5e7eb">{escape(label)}</strong> · ${amount:.2f} · {escape(job_title)}</p>'
+            f'<p><a href="{escape(cta_href)}" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600">{escape(cta_label)}</a></p>'
+            f'<p style="font-size:12px;color:#64748b">Funds are held in escrow and released after you mark this slice complete.</p>'
+            f'</td></tr></table></td></tr></table>'
+        )
+
+    # Contractor — the primary nudge
+    if contractor and contractor.get("email"):
+        subj = f"Slice {slice_num} funded — you're clear to start 🔨"
+        body = f"The customer just funded slice {slice_num} of {job_title}. Funds are held safely in escrow — you're clear to start."
+        try:
+            await send_email(
+                to=contractor["email"], subject=subj,
+                html=_render(f"Slice {slice_num} funded — clear to start 🔨", body,
+                             "Open job", f"{frontend}/handyman"),
+            )
+            await _log_email_send(contractor["user_id"], contractor["email"], "milestone_funded", True)
+        except Exception as exc:
+            await _log_email_send(contractor["user_id"], contractor["email"], "milestone_funded", False, str(exc))
+
+        # Web-push fanout (best-effort; skip silently if VAPID not configured or no subs)
+        try:
+            subs = await db.push_subscriptions.find(
+                {"user_id": contractor["user_id"]}, {"_id": 0}
+            ).to_list(20)
+            push_payload = {
+                "title": f"Slice {slice_num} funded — clear to start 🔨",
+                "body":  f"{job_title} · ${amount:.2f} held in escrow",
+                "icon":  "/icon-192.png",
+                "badge": "/icon-192.png",
+                "tag":   f"milestone-funded-{ms.get('milestone_id')}",
+                "url":   "/handyman",
+                "data":  {"milestone_id": ms.get("milestone_id"), "job_id": ms.get("job_id")},
+            }
+            for s in subs:
+                ok = await _send_push({"endpoint": s["endpoint"], "keys": s["keys"]}, push_payload)
+                await db.push_events.insert_one({
+                    "user_id": contractor["user_id"],
+                    "kind": "sent" if ok else "failed",
+                    "milestone_id": ms.get("milestone_id"),
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                })
+        except Exception as exc:
+            logger.warning("milestone-funded push failed: %s", exc)
+
+    # Customer — closing the "did they pay?" loop
+    if customer and customer.get("email"):
+        subj = f"Slice {slice_num} funded — your craftsman was notified"
+        body = f"We've locked slice {slice_num} of {job_title} in escrow and pinged your craftsman to get started. You'll approve the release once the slice is done."
+        try:
+            await send_email(
+                to=customer["email"], subject=subj,
+                html=_render("Slice funded — craftsman notified", body,
+                             "See progress", f"{frontend}/dashboard"),
+            )
+            await _log_email_send(customer["user_id"], customer["email"], "milestone_funded_customer", True)
+        except Exception as exc:
+            await _log_email_send(customer["user_id"], customer["email"], "milestone_funded_customer", False, str(exc))
 
 
 # ---------- Cron: 72h auto-release scan ----------

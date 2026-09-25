@@ -128,3 +128,13 @@
   subject=Verify your CraftPulse email
   html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Verified User!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=2_MoHwpHplJINNDj2h632AA2WBdbvnXERroSKcz0EjA" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;pad
 
+[2026-09-25T19:15:15.394268+00:00] no_email_key_configured
+  to=con_test@example.com
+  subject=Slice 1 funded — you're clear to start 🔨
+  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px;background:#0F172A"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#141B24;border-radius:14px;padding:28px 32px;color:#E5E7EB"><tr><td><div style="font-weight:700;font-size:16px;color:#F59E0B;margin-bottom:14px">Craft Master Labs</div><h1 style="font-size:22px;margin:0 0 10px;color:#fff">Slice 1 funded — clear to start 🔨</h1><p style="line-height:1.6;color:#cbd5e1">The customer just funded slice 1 of Kitchen backsplash retile. Funds are held safely in escrow — you&#x27;re clear to start.</p><p style="line-height:1.6;color:#94a3b8;font-size:14px"><strong style="color:#e5e7eb">Demo + prep</strong> · $600.00 · Kit
+
+[2026-09-25T19:15:15.404619+00:00] no_email_key_configured
+  to=cust_test@example.com
+  subject=Slice 1 funded — your craftsman was notified
+  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px;background:#0F172A"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#141B24;border-radius:14px;padding:28px 32px;color:#E5E7EB"><tr><td><div style="font-weight:700;font-size:16px;color:#F59E0B;margin-bottom:14px">Craft Master Labs</div><h1 style="font-size:22px;margin:0 0 10px;color:#fff">Slice funded — craftsman notified</h1><p style="line-height:1.6;color:#cbd5e1">We&#x27;ve locked slice 1 of Kitchen backsplash retile in escrow and pinged your craftsman to get started. You&#x27;ll approve the release once the slice is done.</p><p style="line-height:1.6;color:#94a3b8;font-size:14px"><strong style="color:#e5e7eb
+

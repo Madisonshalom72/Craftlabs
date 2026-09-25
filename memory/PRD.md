@@ -109,6 +109,13 @@
   - Admin's notes (if any) appear in both emails. Every send logs to `db.email_sends` with success/failure.
 - **Verified via curl**: cron endpoint returns 401 without token, 200 with token and enqueues work; duplicate `X-Webhook-Id` returns `{duplicate: true}`; crons.yml passes YAML shape validation.
 
+### Milestone-Funded Notifications (2026-02, eleventh sprint) — this sprint
+- **Trigger**: `_handle_escrow_pi_event` now invokes `_notify_milestone_funded(ms)` the instant a milestone PI hits `payment_intent.succeeded` and status flips to `held`. Fires on **every** slice (not just Slice 1).
+- **Contractor**: friendly email "Slice N funded — you're clear to start 🔨" + Web-push (VAPID) to every registered device, tagged `milestone-funded-{ms_id}`, deep-linked to `/handyman`. Push failures auto-prune 410/404 subs via existing `_send_push`.
+- **Customer**: confirmation email "Slice N funded — your craftsman was notified" closing the "did they pay?" loop.
+- Every send logs to `db.email_sends` with kind `milestone_funded` / `milestone_funded_customer`. Notify errors are swallowed so a webhook never fails on a bad email.
+- Verified via direct helper invocation: both emails dispatched, both log rows written with `ok=True`.
+
 
 
 ### Contractor Paywall · Escrow · Verified Email (2026-02, eighth sprint)
