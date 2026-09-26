@@ -130,6 +130,18 @@
 - **False positives noted again**: `generate_sitemap.py` uses `ast.parse` (no `exec`); backend has zero F821 undefined-name violations; `is True/False/None` is PEP 8 idiom.
 - **Deferred (same rationale)**: 62 hook dep fixes, splitting `HandymanDashboard`/`CustomerDashboard`/`CraftsmanOnboarding`/`AdminLicenses`/`AcceptQuoteModal`, `stripe_webhook()`/`match_handymen()`/`related_blog()` decomposition, `server.py` (4700 lines) routers split, type-hint coverage lift. All P0/P1 on roadmap.
 
+### Security Audit Fixes (2026-02, thirteenth sprint) — this sprint
+Full security-audit response, all findings closed:
+- **SEC-001 (HIGH) Unauth PII exposure** → `/api/jobs` and `/api/jobs/{id}` now require session; default listing scoped to `customer_id == me OR assigned_handyman_id == me`, admins bypass. Get-by-id returns 403 when caller isn't a participant. Public map keeps working via already-anonymized `/api/map/handymen` + `/api/map/jobs`.
+- **SEC-002 (HIGH) CORS origin reflection** → replaced `allow_origin_regex=".*"` with an env-driven allowlist (`CORS_ORIGINS` comma-separated, falls back to `FRONTEND_URL`). Backend now returns `access-control-allow-origin` only for the legit origin; evil.com gets no ACAO.
+- **SEC-003 (MED) Free unlimited AI spend** → `/api/ai/diagnose` and `/api/ai/chat` now require session + enforce `AI_DAILY_LIMIT` (default 50/user/day, env-configurable), tracked in `db.ai_events`.
+- **SEC-004 (MED) Admin money endpoints skip active-admin check** → `/api/admin/refund`, `/api/admin/disputes`, `/api/admin/disputes/resolve`, `/api/escrow/auto-release-scan` all switched to `Depends(_require_admin_jwt)` which enforces `disabled=False` + role lookup; refund and dispute-resolve additionally require `owner` role.
+- **SEC-005 (MED) Reset tokens/HTML in logs** → `_admin_forgot` no longer writes the token, username, or link to `/app/memory/admin_recovery.log` or stdout; `_log_email_to_disk` no longer records HTML body. Historical leaked tokens purged from both files (3 admin tokens + 28 HTML dumps).
+- **P3 · Demo login** → gated behind `ENABLE_DEMO_LOGIN=true` env; returns 404 by default in prod.
+- **P3 · Push unsubscribe** → now requires session and scopes the delete to `endpoint + user_id` so a leaked endpoint URL can't force-unsubscribe someone else.
+- **P3 · Stripe webhook replay** → check-first dedupe via `db.stripe_events` with a unique index on `event_id` created at startup. Insert happens **after** successful processing so a processing failure still allows retries. Duplicate events ack with `{received: true, duplicate: true}`.
+- **Verified via curl**: unauth calls to `/api/jobs`, `/api/jobs/{id}`, `/api/ai/diagnose`, `/api/ai/chat`, `/api/admin/refund`, `/api/admin/disputes(/resolve)`, `/api/escrow/auto-release-scan`, `/api/push/unsubscribe` all return **401**. `/api/map/*` still returns 200 (public map intact). Authenticated flows for customer (`/jobs?mine=true`, `/jobs/{own}`) still return 200; foreign job returns 403. Admin cookie session on `disputes` + `auto-release-scan` still returns 200; fake JWT returns 401. Landing page renders + live map preview loads.
+
 
 
 ### Contractor Paywall · Escrow · Verified Email (2026-02, eighth sprint)

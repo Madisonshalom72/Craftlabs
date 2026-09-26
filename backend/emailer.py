@@ -100,12 +100,14 @@ def _assert_safe_email(subject: str, html: str) -> None:
 
 
 def _log_email_to_disk(to: str, subject: str, html: str, reason: str) -> None:
+    """Audit log only. NEVER writes the HTML body (may contain reset links / tokens)."""
+    _ = html  # deliberately unused — kept in signature for backward compatibility
     try:
         EMAIL_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(EMAIL_LOG_PATH, "a") as f:
             f.write(
                 f"[{datetime.now(timezone.utc).isoformat()}] {reason}\n"
-                f"  to={to}\n  subject={subject}\n  html={html[:800]}\n\n"
+                f"  to={to}\n  subject={subject}\n\n"
             )
     except Exception as exc:
         logger.warning("Could not write email log: %s", exc)

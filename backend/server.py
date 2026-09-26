@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Cookie, Header, BackgroundTasks, UploadFile, File, Form, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Cookie, Header, BackgroundTasks, UploadFile, File, Form, Query, Depends
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -391,7 +391,12 @@ async def create_session(payload: SessionRequest, response: Response):
 
 @api.post("/auth/demo-login")
 async def demo_login(payload: RoleUpdate, response: Response):
-    """Bypass Google auth for demos - assigns a role-specific demo user."""
+    """Bypass Google auth for demos - assigns a role-specific demo user.
+
+    Disabled by default in production. Set ENABLE_DEMO_LOGIN=true in env to opt in.
+    """
+    if os.environ.get("ENABLE_DEMO_LOGIN", "").lower() != "true":
+        raise HTTPException(404, "Not found")
     if payload.role == "handyman":
         # Use Marcus Vance as demo handyman
         user = await db.users.find_one({"email": "marcus.vance@demo.craftpulse.ai"}, {"_id": 0})
@@ -1050,24 +1055,18 @@ async def admin_forgot(payload: AdminForgotRequest, request: Request):
         "used": False, "created_at": datetime.now(timezone.utc).isoformat(),
         "ip": ip,
     })
-    # Log so the site operator can retrieve it (real email service comes later)
+    # Audit log only — NEVER write the token or link to disk (SEC-005).
     try:
         Path("/app/memory").mkdir(parents=True, exist_ok=True)
         with open("/app/memory/admin_recovery.log", "a") as f:
             f.write(
                 f"[{datetime.now(timezone.utc).isoformat()}] "
-                f"Reset token requested from ip={ip}. "
-                f"Send to {ADMIN_RECOVERY_EMAIL}. "
-                f"Username: {ADMIN_USERNAME}. "
-                f"Token: {token} "
+                f"Reset requested from ip={ip} → email queued to {ADMIN_RECOVERY_EMAIL}. "
                 f"(expires {expires.isoformat()})\n"
             )
     except Exception as exc:
         logger.warning("Could not write recovery log: %s", exc)
-    logger.info(
-        "ADMIN RESET TOKEN issued (send to %s) — token=%s",
-        ADMIN_RECOVERY_EMAIL, token,
-    )
+    logger.info("ADMIN RESET REQUESTED — email queued to %s", ADMIN_RECOVERY_EMAIL)
     # Fire-and-forget email
     try:
         asyncio.create_task(_email_admin_reset_token(token, ip))
@@ -1222,6 +1221,15 @@ async def _startup_init_storage():
         init_storage()
     except Exception as exc:  # non-fatal — uploads will retry on first request
         logging.getLogger(__name__).warning("storage init failed at startup: %s", exc)
+
+
+@app.on_event("startup")
+async def _startup_indexes():
+    """Ensure security-critical unique indexes exist (idempotent)."""
+    try:
+        await db.stripe_events.create_index("event_id", unique=True)
+    except Exception as exc:
+        logging.getLogger(__name__).warning("stripe_events index create failed: %s", exc)
 
 
 @api.get("/admin/users")
@@ -1505,6 +1513,23 @@ async def reject_craftsman(user_id: str, payload: RejectPayload,
 
 
 # ============ AI ============
+AI_DAILY_LIMIT = int(os.environ.get("AI_DAILY_LIMIT", "50"))
+
+
+async def _ai_quota_check(user: dict, kind: str) -> None:
+    """Per-user daily cap for AI text/vision calls. Raises 429 when exceeded."""
+    since = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    used = await db.ai_events.count_documents({
+        "user_id": user["user_id"], "created_at": {"$gte": since},
+    })
+    if used >= AI_DAILY_LIMIT:
+        raise HTTPException(429, f"Daily AI limit reached ({AI_DAILY_LIMIT}/day). Try again tomorrow.")
+    await db.ai_events.insert_one({
+        "user_id": user["user_id"], "kind": kind,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+
 def _get_llm(session_id: str, system_message: str):
     return LlmChat(
         api_key=EMERGENT_LLM_KEY,
@@ -1514,8 +1539,12 @@ def _get_llm(session_id: str, system_message: str):
 
 
 @api.post("/ai/diagnose")
-async def ai_diagnose(payload: DiagnoseRequest):
+async def ai_diagnose(payload: DiagnoseRequest,
+                      session_token: Optional[str] = Cookie(None),
+                      authorization: Optional[str] = Header(None)):
     """AI Vision: analyze a photo of a broken item, return structured diagnosis + quote."""
+    user = await get_current_user(session_token, authorization)
+    await _ai_quota_check(user, "diagnose")
     sys = (
         "You are Craft Master Labs, an expert home-repair vision diagnostician. "
         "Analyze the uploaded image of a broken or malfunctioning household item. "
@@ -1591,8 +1620,12 @@ async def ai_diagnose(payload: DiagnoseRequest):
 
 
 @api.post("/ai/chat")
-async def ai_chat(payload: ChatRequest):
+async def ai_chat(payload: ChatRequest,
+                  session_token: Optional[str] = Cookie(None),
+                  authorization: Optional[str] = Header(None)):
     """Streaming AI repair concierge."""
+    user = await get_current_user(session_token, authorization)
+    await _ai_quota_check(user, "chat")
     sys = (
         "You are the Craft Master Labs Repair Concierge. You help homeowners scope handyman jobs. "
         "Be concise, friendly, and pragmatic. Ask clarifying questions if needed. "
@@ -1746,28 +1779,45 @@ async def leads_stream(session_token: Optional[str] = Cookie(None),
 async def list_jobs(mine: bool = False, leads: bool = False,
                     session_token: Optional[str] = Cookie(None),
                     authorization: Optional[str] = Header(None)):
-    if mine or leads:
-        user = await get_current_user(session_token, authorization)
-        if mine:
-            jobs = await db.jobs.find({"customer_id": user["user_id"]}, {"_id": 0}).to_list(200)
-        else:
-            profile = await db.handyman_profiles.find_one({"user_id": user["user_id"]}, {"_id": 0})
-            all_jobs = await db.jobs.find({"status": "open"}, {"_id": 0}).to_list(200)
-            jobs = []
-            for j in all_jobs:
-                j["match_score"] = _match_score(j, profile or {})
-                jobs.append(j)
-            jobs.sort(key=lambda x: -x["match_score"])
-    else:
-        jobs = await db.jobs.find({}, {"_id": 0}).to_list(200)
-    return jobs
+    """Auth-required job listing.
+
+    - `mine=true`  → customer's own jobs
+    - `leads=true` → contractor's ranked open leads
+    - default      → jobs the caller participates in (customer's own OR contractor's assigned)
+                     admins get everything
+    """
+    user = await get_current_user(session_token, authorization)
+    if mine:
+        return await db.jobs.find({"customer_id": user["user_id"]}, {"_id": 0}).to_list(200)
+    if leads:
+        profile = await db.handyman_profiles.find_one({"user_id": user["user_id"]}, {"_id": 0})
+        all_jobs = await db.jobs.find({"status": "open"}, {"_id": 0}).to_list(200)
+        jobs = []
+        for j in all_jobs:
+            j["match_score"] = _match_score(j, profile or {})
+            jobs.append(j)
+        jobs.sort(key=lambda x: -x["match_score"])
+        return jobs
+    # Default: only jobs the caller participates in. Admins bypass.
+    if user.get("is_admin") or user.get("role") == "admin":
+        return await db.jobs.find({}, {"_id": 0}).to_list(200)
+    q = {"$or": [{"customer_id": user["user_id"]},
+                 {"assigned_handyman_id": user["user_id"]}]}
+    return await db.jobs.find(q, {"_id": 0}).to_list(200)
 
 
 @api.get("/jobs/{job_id}")
-async def get_job(job_id: str):
+async def get_job(job_id: str,
+                  session_token: Optional[str] = Cookie(None),
+                  authorization: Optional[str] = Header(None)):
+    user = await get_current_user(session_token, authorization)
     j = await db.jobs.find_one({"job_id": job_id}, {"_id": 0})
     if not j:
         raise HTTPException(404, "Job not found")
+    is_participant = user["user_id"] in (j.get("customer_id"), j.get("assigned_handyman_id"))
+    is_admin = user.get("is_admin") or user.get("role") == "admin"
+    if not (is_participant or is_admin):
+        raise HTTPException(403, "Not authorized to view this job")
     return j
 
 
@@ -1886,8 +1936,15 @@ async def subscribe_push(subscription: PushSubscription,
 
 
 @api.post("/push/unsubscribe")
-async def unsubscribe_push(subscription: PushSubscription):
-    await db.push_subscriptions.delete_one({"endpoint": subscription.endpoint})
+async def unsubscribe_push(subscription: PushSubscription,
+                           session_token: Optional[str] = Cookie(None),
+                           authorization: Optional[str] = Header(None)):
+    """Unsubscribe a push endpoint. Requires auth so a leaked endpoint URL
+    can't be used to force-unsubscribe someone else."""
+    user = await get_current_user(session_token, authorization)
+    await db.push_subscriptions.delete_one({
+        "endpoint": subscription.endpoint, "user_id": user["user_id"],
+    })
     return {"ok": True}
 
 
@@ -2393,6 +2450,11 @@ async def stripe_webhook(request: Request):
         event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
     except stripe.error.SignatureVerificationError:
         raise HTTPException(400, "Invalid signature")
+    # Replay protection: dedupe by Stripe event id. Check-first so that if
+    # processing raises, Stripe's retry re-enters this handler and re-processes.
+    event_id = event.get("id")
+    if event_id and await db.stripe_events.find_one({"event_id": event_id}, {"_id": 1}):
+        return {"received": True, "duplicate": True}
     obj, t = event["data"]["object"], event["type"]
     # Escrow PaymentIntent lifecycle
     if t.startswith("payment_intent."):
@@ -2514,6 +2576,16 @@ async def stripe_webhook(request: Request):
                     )
             except Exception as exc:
                 logger.warning("Payment-failed email hook failed: %s", exc)
+    # Mark event as processed AFTER handlers finished so failures allow retries.
+    if event_id:
+        try:
+            await db.stripe_events.insert_one({
+                "event_id": event_id,
+                "type": event.get("type"),
+                "received_at": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass  # Concurrent duplicate — safe to ignore.
     return {"status": "ok"}
 
 
@@ -3801,20 +3873,9 @@ async def escrow_dispute(
 
 @api.post("/escrow/auto-release-scan")
 async def escrow_auto_release_scan(
-    session_token: Optional[str] = Cookie(None),
-    authorization: Optional[str] = Header(None),
+    admin: dict = Depends(_require_admin_jwt),
 ):
     """Idempotent scan: releases any job whose 72-hour window has passed."""
-    # Simple auth: admin bearer OR the internal cron caller
-    is_admin = False
-    if authorization and authorization.startswith("Bearer "):
-        try:
-            _admin_decode_token(authorization[7:])
-            is_admin = True
-        except Exception:
-            is_admin = False
-    if not is_admin:
-        raise HTTPException(403, "Admin only")
     now_iso = datetime.now(timezone.utc).isoformat()
     released: list[str] = []
     async for job in db.jobs.find({
@@ -3999,15 +4060,11 @@ class RefundRequest(BaseModel):
 @api.post("/admin/refund")
 async def admin_refund(
     payload: RefundRequest,
-    authorization: Optional[str] = Header(None),
+    admin: dict = Depends(_require_admin_jwt),
 ):
     """Admin-only full or partial refund to the customer's original payment method."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(401, "Admin token required")
-    try:
-        _admin_decode_token(authorization[7:])
-    except Exception:
-        raise HTTPException(403, "Invalid admin token")
+    if admin.get("role") != "owner":
+        raise HTTPException(403, "Owner-only action")
     job = await db.jobs.find_one({"job_id": payload.job_id}, {"_id": 0})
     if not job or not job.get("stripe_payment_intent_id"):
         raise HTTPException(404, "Job has no payment to refund")
@@ -4323,19 +4380,9 @@ async def milestone_dispute(
 @api.get("/admin/disputes")
 async def admin_list_disputes(
     status: str = "open",
-    admin_token: Optional[str] = Cookie(None),
-    authorization: Optional[str] = Header(None),
+    admin: dict = Depends(_require_admin_jwt),
 ):
     """Admin queue: list disputes filtered by status (open|resolved|all)."""
-    token = admin_token
-    if not token and authorization and authorization.startswith("Bearer "):
-        token = authorization[7:]
-    if not token:
-        raise HTTPException(401, "Admin auth required")
-    try:
-        _admin_decode_token(token)
-    except Exception:
-        raise HTTPException(403, "Invalid admin token")
     q = {} if status == "all" else {"status": status}
     rows = await db.disputes.find(q, {"_id": 0}).sort("created_at", -1).to_list(200)
     # Enrich with job + parties for the queue view
@@ -4368,18 +4415,10 @@ class DisputeResolveRequest(BaseModel):
 @api.post("/admin/disputes/resolve")
 async def admin_resolve_dispute(
     payload: DisputeResolveRequest,
-    admin_token: Optional[str] = Cookie(None),
-    authorization: Optional[str] = Header(None),
+    admin: dict = Depends(_require_admin_jwt),
 ):
-    token = admin_token
-    if not token and authorization and authorization.startswith("Bearer "):
-        token = authorization[7:]
-    if not token:
-        raise HTTPException(401, "Admin auth required")
-    try:
-        admin = _admin_decode_token(token)
-    except Exception:
-        raise HTTPException(403, "Invalid admin token")
+    if admin.get("role") != "owner":
+        raise HTTPException(403, "Owner-only action")
 
     dispute = await db.disputes.find_one({"dispute_id": payload.dispute_id}, {"_id": 0})
     if not dispute:
@@ -4505,7 +4544,7 @@ async def admin_resolve_dispute(
         {"$set": {
             "status": "resolved",
             "resolved_at": now,
-            "resolved_by": admin.get("sub") or "admin",
+            "resolved_by": admin.get("username") or "admin",
             "resolution_action": action,
             "resolution_notes": (payload.notes or "")[:600],
             "resolution_outcome": outcome,
@@ -4513,7 +4552,7 @@ async def admin_resolve_dispute(
     )
     await db.audit_log.insert_one({
         "log_id": uuid.uuid4().hex,
-        "admin_id": admin.get("sub") or "admin",
+        "admin_id": admin.get("username") or "admin",
         "action": "dispute.resolve",
         "target_id": payload.dispute_id,
         "meta": outcome,
@@ -4727,10 +4766,19 @@ async def cron_escrow_auto_release(
 # ============ MOUNT ============
 app.include_router(api)
 
+# CORS allowlist — never wildcard when credentials are allowed (SEC-002).
+# Comma-separated allowlist from env; falls back to the frontend URL only.
+_cors_env = os.environ.get("CORS_ORIGINS", "").strip()
+if _cors_env and _cors_env != "*":
+    _allow_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    _allow_origins = [os.environ.get("FRONTEND_URL", "").rstrip("/")]
+_allow_origins = [o for o in _allow_origins if o]  # drop empties
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origin_regex=".*",
+    allow_origins=_allow_origins or ["http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],

@@ -1,140 +1,116 @@
 [2026-09-23T16:53:41.928328+00:00] no_email_key_configured
   to=loans24funding@gmail.com
   subject=CraftPulse admin password reset
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#1F2937;background:#F8FAFC;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;padding:28px 32px;box-shadow:0 2px 10px rgba(0,0,0,0.05)"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px;letter-spacing:-0.2px">CraftPulse<span style="color:#0F172A;font-weight:600"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Reset your admin password</h1><p style="line-height:1.6">A password reset was requested for the CraftPulse admin console. If this was you, click the button below within the next 30 minutes.</p><p><a href="https:
 
 [2026-09-23T16:54:25.529762+00:00] no_email_key_configured
   to=loans24funding@gmail.com
   subject=CraftPulse admin password reset
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#1F2937;background:#F8FAFC;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;padding:28px 32px;box-shadow:0 2px 10px rgba(0,0,0,0.05)"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px;letter-spacing:-0.2px">CraftPulse<span style="color:#0F172A;font-weight:600"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Reset your admin password</h1><p style="line-height:1.6">A password reset was requested for the CraftPulse admin console. If this was you, click the button below within the next 30 minutes.</p><p><a href="https:
 
 [2026-09-23T17:10:46.893225+00:00] no_email_key_configured
   to=test.1790183446@craftpulse.local
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Test User!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=D5ZoAWobC3DiLYCuM-6QdvhYCBt0BQ2NwVJWvwSrIMU" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding
 
 [2026-09-23T17:10:49.307891+00:00] no_email_key_configured
   to=test.1790183446@craftpulse.local
   subject=Reset your CraftPulse password
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Reset your password</h1><p style="line-height:1.6">Hi Test User, we received a request to reset your CraftPulse password. This link expires in 60 minutes.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/reset?token=NlG5xDeKcaffmRiL79yo4y9xEs15pIJ80yTvo96t_WY" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decorat
 
 [2026-09-23T18:49:28.527896+00:00] no_email_key_configured
   to=test_6eeba4f578@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Testy McTest!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=jQrzSrAr9WNuLy9q9L5BxO-Ndknbbv3ZZCyS0ugb83k" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padd
 
 [2026-09-23T18:49:28.979904+00:00] no_email_key_configured
   to=test_6f735215a3@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, A!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=RSldzn5zMZb1TjehsdPj8oneGYfIjshPAsrq5OSdN2s" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22
 
 [2026-09-23T18:49:29.091458+00:00] no_email_key_configured
   to=test_6f735215a3@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, A!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=77eH9WOuoubKM3jpu7YNMNMNhUb6LSjguWO7hIPYWCw" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22
 
 [2026-09-23T18:49:29.813129+00:00] no_email_key_configured
   to=test_8733b7539a@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, A!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=_h1OcxtHLaZiorzKC5nhbmUoTeD4w-fsf4_7n45mtdQ" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22
 
 [2026-09-23T18:49:30.511965+00:00] no_email_key_configured
   to=test_9b821390a6@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, A!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=N3nIykRnumjUFdFi9yaRCtRE9FDc15RkKqFzR-Todxo" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22
 
 [2026-09-23T18:49:31.033619+00:00] no_email_key_configured
   to=test_0c92a68179@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Verified User!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=FoB-R0gnMJm6DWZ0jTWScCtwg6Ha-ZqWeB_bpE0TO50" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;pad
 
 [2026-09-23T18:49:31.459207+00:00] no_email_key_configured
   to=test_d9a5bac49c@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Verified User!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=pyNoOu51Zk3WrnXLBvNvxfwf8SLKbU-kNZucV-kR3Ok" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;pad
 
 [2026-09-23T18:49:32.122124+00:00] no_email_key_configured
   to=test_ae5f566cb4@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Verified User!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=z6Ssnihzk_8vZy4CWDnfaiFEjFublMe5rRGuoXKH3cs" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;pad
 
 [2026-09-23T18:49:32.503185+00:00] no_email_key_configured
   to=test_74f1377a96@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Verified User!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=hT5t6NweDnQ4BKHpTK258IeMTiRV7q175p3Zh0Bevcw" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;pad
 
 [2026-09-23T18:49:32.879143+00:00] no_email_key_configured
   to=test_64f610045a@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Verified User!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=in_ShlTKJzFcKOhW0cXoL0R2KJZeoKzy2QWewc3LVEE" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;pad
 
 [2026-09-23T18:50:03.930926+00:00] no_email_key_configured
   to=test_b9fe9c1806@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Testy McTest!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=OCsYVQ62IiWPvoo8yYrY_8UwMl9IgOtkBLkQ-2j2slU" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padd
 
 [2026-09-23T18:50:04.324357+00:00] no_email_key_configured
   to=test_355af78823@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, A!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=djU04MUNoKCPjcIoStUlW1qUW8TTKcDxgGtFgkNjHHw" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22
 
 [2026-09-23T18:50:04.398367+00:00] no_email_key_configured
   to=test_355af78823@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, A!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=fUTaWxvJ3BRzMC0k6IuqRq0uNWOIyKNIcKXeygYnbFU" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22
 
 [2026-09-23T18:50:05.293544+00:00] no_email_key_configured
   to=test_53cb88cf69@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, A!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=s3wopBKR7HkXoRp_mlMWXX9Lr2HL1KOsIBiqb2i3vUs" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22
 
 [2026-09-23T18:50:05.965618+00:00] no_email_key_configured
   to=test_ff64c8285b@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, A!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=UNde0kTOHmcrfDpj-lFB5vj4EWeI0plrYdUJGQvE2ZM" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;padding:11px 22
 
 [2026-09-23T18:50:06.715475+00:00] no_email_key_configured
   to=test_c175a7dcba@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Verified User!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=vxh5L8U3yQw2FzlajJyY-VRgem6zGx7k4Uj5hPobydI" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;pad
 
 [2026-09-23T18:50:07.680701+00:00] no_email_key_configured
   to=test_4b8031c297@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Verified User!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=mXXiHSjbRDAG8F11EIObo5hGtBGw0pTfX13DE93Xcfs" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;pad
 
 [2026-09-23T18:50:08.781655+00:00] no_email_key_configured
   to=test_d6df58cd45@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Verified User!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=5oFe8HBNDftRFbo2ZGkjiWsFRxCijZLUdxRaFDunuyY" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;pad
 
 [2026-09-23T18:50:08.938403+00:00] no_email_key_configured
   to=test_d6df58cd45@example.com
   subject=Reset your CraftPulse password
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Reset your password</h1><p style="line-height:1.6">Hi Verified User, we received a request to reset your CraftPulse password. This link expires in 60 minutes.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/reset?token=xfXbpRG-pPZ_OlUUvbOvDAALZnXIEnckqJhH0XkAkDU" style="display:inline-block;background:#F59E0B;color:#0F172A;text-dec
 
 [2026-09-23T18:50:09.357125+00:00] no_email_key_configured
   to=test_4d9b422533@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Verified User!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=XgGenX5ltYp2wsYif5ae8oT6bWDvqHRoS-5SSUMAyA4" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;pad
 
 [2026-09-23T18:50:09.937690+00:00] no_email_key_configured
   to=test_4d9b422533@example.com
   subject=Reset your CraftPulse password
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Reset your password</h1><p style="line-height:1.6">Hi Verified User, we received a request to reset your CraftPulse password. This link expires in 60 minutes.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/reset?token=wQjrwUWggHJBDgJ2GPmFaAqGR04VivLAkGaNFMzcUd4" style="display:inline-block;background:#F59E0B;color:#0F172A;text-dec
 
 [2026-09-23T18:50:11.469028+00:00] no_email_key_configured
   to=test_ec3ae860f2@example.com
   subject=Verify your CraftPulse email
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;padding:28px 32px"><tr><td><div style="font-weight:700;font-size:18px;color:#F59E0B;margin-bottom:20px">CraftPulse<span style="color:#0F172A"> AI</span></div><h1 style="font-size:22px;margin:0 0 10px">Welcome, Verified User!</h1><p style="line-height:1.6">Confirm your email to activate your CraftPulse account. This link expires in 48 hours.</p><p><a href="https://fixit-ai-6.preview.emergentagent.com/verify?token=2_MoHwpHplJINNDj2h632AA2WBdbvnXERroSKcz0EjA" style="display:inline-block;background:#F59E0B;color:#0F172A;text-decoration:none;pad
 
 [2026-09-25T19:15:15.394268+00:00] no_email_key_configured
   to=con_test@example.com
   subject=Slice 1 funded — you're clear to start 🔨
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px;background:#0F172A"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#141B24;border-radius:14px;padding:28px 32px;color:#E5E7EB"><tr><td><div style="font-weight:700;font-size:16px;color:#F59E0B;margin-bottom:14px">Craft Master Labs</div><h1 style="font-size:22px;margin:0 0 10px;color:#fff">Slice 1 funded — clear to start 🔨</h1><p style="line-height:1.6;color:#cbd5e1">The customer just funded slice 1 of Kitchen backsplash retile. Funds are held safely in escrow — you&#x27;re clear to start.</p><p style="line-height:1.6;color:#94a3b8;font-size:14px"><strong style="color:#e5e7eb">Demo + prep</strong> · $600.00 · Kit
 
 [2026-09-25T19:15:15.404619+00:00] no_email_key_configured
   to=cust_test@example.com
   subject=Slice 1 funded — your craftsman was notified
-  html=<table role="presentation" width="100%" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:32px 12px;background:#0F172A"><tr><td align="center"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#141B24;border-radius:14px;padding:28px 32px;color:#E5E7EB"><tr><td><div style="font-weight:700;font-size:16px;color:#F59E0B;margin-bottom:14px">Craft Master Labs</div><h1 style="font-size:22px;margin:0 0 10px;color:#fff">Slice funded — craftsman notified</h1><p style="line-height:1.6;color:#cbd5e1">We&#x27;ve locked slice 1 of Kitchen backsplash retile in escrow and pinged your craftsman to get started. You&#x27;ll approve the release once the slice is done.</p><p style="line-height:1.6;color:#94a3b8;font-size:14px"><strong style="color:#e5e7eb
+
+[2026-09-26T00:16:26.853782+00:00] no_email_key_configured
+  to=loans24funding@gmail.com
+  subject=Craft Master Labs admin password reset
 
