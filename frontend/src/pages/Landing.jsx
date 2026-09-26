@@ -35,7 +35,7 @@ export default function Landing() {
 
   const closeTour = () => {
     setShowTour(false);
-    try { localStorage.setItem("cp_tour_seen", "1"); } catch { /* ignore */ }
+    try { localStorage.setItem("cp_tour_seen", "1"); } catch (err) { console.debug("[Landing] localStorage unavailable:", err); }
   };
 
   useEffect(() => {

@@ -19,9 +19,9 @@ export default function AcceptQuoteModal({ jobId, amountCents, open, onClose, on
   const canSplit = amountCents >= MILESTONE_MIN;
   const [mode, setMode] = useState("single");
   const [milestones, setMilestones] = useState(() => [
-    { label: "Materials", amount: Math.floor(amountCents / 3) },
-    { label: "Rough-in", amount: Math.floor(amountCents / 3) },
-    { label: "Finish", amount: amountCents - 2 * Math.floor(amountCents / 3) },
+    { id: "ms-init-1", label: "Materials", amount: Math.floor(amountCents / 3) },
+    { id: "ms-init-2", label: "Rough-in", amount: Math.floor(amountCents / 3) },
+    { id: "ms-init-3", label: "Finish", amount: amountCents - 2 * Math.floor(amountCents / 3) },
   ]);
   const [planData, setPlanData] = useState(null);   // list of created milestones
   const [payInit, setPayInit] = useState(null);      // {client_secret, amount, ...}
@@ -49,7 +49,7 @@ export default function AcceptQuoteModal({ jobId, amountCents, open, onClose, on
   const totalPlan = milestones.reduce((s, m) => s + (parseInt(m.amount || 0, 10) || 0), 0);
   const planValid = totalPlan >= MILESTONE_MIN && milestones.every((m) => m.amount >= 500) && milestones.length >= 1 && milestones.length <= 3;
 
-  const addSlice = () => milestones.length < 3 && setMilestones([...milestones, { label: `Phase ${milestones.length + 1}`, amount: 50000 }]);
+  const addSlice = () => milestones.length < 3 && setMilestones([...milestones, { id: `ms-${Date.now()}`, label: `Phase ${milestones.length + 1}`, amount: 50000 }]);
   const removeSlice = (i) => milestones.length > 1 && setMilestones(milestones.filter((_, idx) => idx !== i));
   const updateSlice = (i, patch) => setMilestones(milestones.map((m, idx) => (idx === i ? { ...m, ...patch } : m)));
 
@@ -134,7 +134,7 @@ export default function AcceptQuoteModal({ jobId, amountCents, open, onClose, on
                 Big jobs deserve their own guardrails. Split into up to 3 slices — you fund and approve each one independently. Minimum total: <span className="font-mono text-craft-lime">$1,500</span>.
               </p>
               {milestones.map((m, i) => (
-                <div key={i} data-testid={`milestone-row-${i}`} className="rounded-2xl border border-white/10 bg-slate-950/40 px-3 py-3 flex items-center gap-3">
+                <div key={m.id} data-testid={`milestone-row-${i}`} className="rounded-2xl border border-white/10 bg-slate-950/40 px-3 py-3 flex items-center gap-3">
                   <div className="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/40 text-amber-300 flex items-center justify-center font-mono text-xs shrink-0">{i + 1}</div>
                   <input
                     data-testid={`milestone-label-${i}`}

@@ -48,7 +48,7 @@ export default function AdminDashboard() {
   const [creating, setCreating] = useState(false);
 
   const logout = async () => {
-    try { await http.post("/admin/logout"); } catch { /* ignore */ }
+    try { await http.post("/admin/logout"); } catch (err) { console.debug("[AdminDashboard] logout error:", err); }
     navigate("/admin/login", { replace: true });
   };
 

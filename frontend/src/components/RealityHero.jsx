@@ -207,15 +207,15 @@ function ScanPanel({ scene, total }) {
         {scene.issues.map((iss, i) => {
           const stroke = TONE[iss.tone];
           return (
-            <g key={i} style={{ animation: `cml-issue-${i} ${SCENE_DUR}ms linear infinite`, opacity: 0 }}>
+            <g key={`iss-${iss.x}-${iss.y}-${iss.tone}`} style={{ animation: `cml-issue-${i} ${SCENE_DUR}ms linear infinite`, opacity: 0 }}>
               <rect
                 x={iss.x} y={iss.y} width={iss.w} height={iss.h}
                 fill="none" stroke={stroke} strokeWidth="0.4"
                 strokeDasharray="1 1.5"
                 vectorEffect="non-scaling-stroke"
               />
-              {[[iss.x, iss.y],[iss.x+iss.w, iss.y],[iss.x, iss.y+iss.h],[iss.x+iss.w, iss.y+iss.h]].map(([cx,cy],k)=>(
-                <circle key={k} cx={cx} cy={cy} r="0.8" fill={stroke} />
+              {[[iss.x, iss.y],[iss.x+iss.w, iss.y],[iss.x, iss.y+iss.h],[iss.x+iss.w, iss.y+iss.h]].map(([cx,cy])=>(
+                <circle key={`c-${cx}-${cy}`} cx={cx} cy={cy} r="0.8" fill={stroke} />
               ))}
               {/* center ping */}
               <circle

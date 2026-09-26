@@ -4,7 +4,7 @@ import { MessageCircle, Send, Loader2, Sparkles } from "lucide-react";
 
 export default function AIChat({ sessionId }) {
   const [messages, setMessages] = useState([
-    { role: "assistant", content: "Hey — describe the issue in your own words. What's broken and where?" },
+    { id: "welcome", role: "assistant", content: "Hey — describe the issue in your own words. What's broken and where?" },
   ]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -16,7 +16,8 @@ export default function AIChat({ sessionId }) {
     if (!input.trim() || streaming) return;
     const userMsg = input.trim();
     setInput("");
-    setMessages(m => [...m, { role: "user", content: userMsg }, { role: "assistant", content: "" }]);
+    const turn = Date.now();
+    setMessages(m => [...m, { id: `u-${turn}`, role: "user", content: userMsg }, { id: `a-${turn}`, role: "assistant", content: "" }]);
     setStreaming(true);
     try {
       const res = await fetch(`${API}/ai/chat`, {
@@ -46,8 +47,9 @@ export default function AIChat({ sessionId }) {
           }
         }
       }
-    } catch (e) {
-      setMessages(m => [...m.slice(0, -1), { role: "assistant", content: "Sorry — connection dropped. Try again." }]);
+    } catch (err) {
+      console.debug("[AIChat] stream error:", err);
+      setMessages(m => [...m.slice(0, -1), { id: `a-err-${Date.now()}`, role: "assistant", content: "Sorry — connection dropped. Try again." }]);
     } finally {
       setStreaming(false);
     }
@@ -68,7 +70,7 @@ export default function AIChat({ sessionId }) {
       </div>
       <div className="flex-1 overflow-y-auto p-5 space-y-3">
         {messages.map((m, i) => (
-          <div key={i} data-testid={`chat-msg-${m.role}-${i}`} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+          <div key={m.id} data-testid={`chat-msg-${m.role}-${i}`} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
               m.role === "user"
                 ? "bg-amber-500 text-slate-900 font-medium"

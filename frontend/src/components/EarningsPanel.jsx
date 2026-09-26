@@ -24,7 +24,7 @@ export default function EarningsPanel() {
       setData(e.data);
       setConnect(c.data);
     } catch (err) {
-      // fine — could be no auth
+      console.debug("[Earnings] load skipped:", err);  // usually just an unauth'd session
     }
   };
 

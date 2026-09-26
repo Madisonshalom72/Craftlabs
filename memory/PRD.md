@@ -124,6 +124,12 @@
 - **False positives noted**: `generate_sitemap.py` already uses `ast.parse` (no `exec`); server.py has zero `F821` undefined-name violations; test files' `is True/False/None` follow PEP 8 (linter was over-eager). No changes needed.
 - **Deferred to their own sprints** (already P0/P1 on roadmap): 61 React hook dep fixes across 5 dashboards, splitting `server.py` (4700 lines) into routers, splitting `HandymanDashboard.jsx` / `CustomerDashboard.jsx` / `CraftsmanOnboarding.jsx` / `AcceptQuoteModal.jsx` into sub-components, `stripe_webhook()` complexity refactor. Each carries real regression risk and needs its own scoped plan.
 
+### Code-Review Cleanup Pass 2 (2026-02, twelfth-b sprint) — this sprint
+- **More index-as-key kills**: `RealityHero.jsx` SVG issue rects + corner dots now keyed on coordinate; `AcceptQuoteModal.jsx` milestone rows now carry stable client-side `id`s (init + `addSlice` mint one) so `removeSlice` no longer trashes sibling input state; `AIDiagnosticStudio.jsx` vision regions keyed on `region-${i}-${x}-${y}`; `AIChat.jsx` messages now carry `id` (`welcome`, `u-${ts}`, `a-${ts}`, `a-err-${ts}`) so streaming updates the same DOM node instead of remounting on every delta.
+- **More empty catches gone**: `Landing.jsx`, `AdminLicenses.jsx`, `AdminDashboard.jsx`, `LiveMapPreview.jsx`, `EarningsPanel.jsx` all bind `err` and use `console.debug` (hidden by default in production DevTools; visible on verbose).
+- **False positives noted again**: `generate_sitemap.py` uses `ast.parse` (no `exec`); backend has zero F821 undefined-name violations; `is True/False/None` is PEP 8 idiom.
+- **Deferred (same rationale)**: 62 hook dep fixes, splitting `HandymanDashboard`/`CustomerDashboard`/`CraftsmanOnboarding`/`AdminLicenses`/`AcceptQuoteModal`, `stripe_webhook()`/`match_handymen()`/`related_blog()` decomposition, `server.py` (4700 lines) routers split, type-hint coverage lift. All P0/P1 on roadmap.
+
 
 
 ### Contractor Paywall · Escrow · Verified Email (2026-02, eighth sprint)

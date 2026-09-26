@@ -93,7 +93,7 @@ export default function AIDiagnosticStudio({ onDiagnosis }) {
                       const style = REGION_BORDER[r.severity] || REGION_BORDER.Medium;
                       return (
                         <div
-                          key={i}
+                          key={`region-${i}-${r.x}-${r.y}`}
                           data-testid={`region-${i}`}
                           className={`absolute border-2 rounded-md ${style.border} ${style.bg} transition-all duration-500`}
                           style={{

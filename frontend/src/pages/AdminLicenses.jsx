@@ -54,7 +54,7 @@ export default function AdminLicenses() {
   };
 
   const logout = async () => {
-    try { await http.post("/admin/logout"); } catch { /* ignore */ }
+    try { await http.post("/admin/logout"); } catch (err) { console.debug("[AdminLicenses] logout error:", err); }
     navigate("/admin/login", { replace: true });
   };
 
