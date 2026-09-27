@@ -71,7 +71,7 @@ export default function Landing() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                to="/login"
+                to="/book"
                 data-testid="hero-cta-post-job"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold transition amber-glow"
               >

@@ -7,6 +7,8 @@ import ReferralPanel from "@/components/ReferralPanel";
 import PortfolioGallery from "@/components/PortfolioGallery";
 import TrialBanner from "@/components/TrialBanner";
 import EarningsPanel from "@/components/EarningsPanel";
+import CounterOfferModal from "@/components/CounterOfferModal";
+import ContractSignModal from "@/components/ContractSignModal";
 import { API, http } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -24,6 +26,8 @@ export default function HandymanDashboard() {
   const [tab, setTab] = useState("leads");
   const [saving, setSaving] = useState(false);
   const [chatJob, setChatJob] = useState(null);
+  const [counterJob, setCounterJob] = useState(null);
+  const [signJob, setSignJob] = useState(null);
   const [liveConnected, setLiveConnected] = useState(false);
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
@@ -316,6 +320,24 @@ export default function HandymanDashboard() {
                     <button data-testid={`accept-${j.job_id}`} onClick={() => acceptJob(j.job_id)} className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/25 text-emerald-400 text-sm font-semibold transition">
                       <CheckCircle2 className="w-4 h-4" /> Accept
                     </button>
+                    {j.quoted_amount_cents > 0 && j.counter_status !== "pending" && j.counter_status !== "accepted" && j.counter_status !== "declined" && (
+                      <button
+                        data-testid={`counter-${j.job_id}`}
+                        onClick={() => setCounterJob(j)}
+                        className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-amber-300 text-sm font-semibold transition"
+                      >
+                        <TrendingUp className="w-4 h-4" /> Counter
+                      </button>
+                    )}
+                    {j.assigned_handyman_id === user?.user_id && j.contract_status !== "both_signed" && (
+                      <button
+                        data-testid={`sign-${j.job_id}`}
+                        onClick={() => setSignJob(j)}
+                        className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-amber-500/40 hover:bg-amber-500/10 text-amber-300 text-sm font-semibold transition"
+                      >
+                        <CheckCircle2 className="w-4 h-4" /> Sign contract
+                      </button>
+                    )}
                     <button data-testid={`decline-${j.job_id}`} onClick={() => declineJob(j.job_id)} className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-white/10 hover:border-white/20 text-slate-400 text-sm font-medium transition">
                       <XCircle className="w-4 h-4" /> Dismiss
                     </button>
@@ -443,6 +465,24 @@ export default function HandymanDashboard() {
 
       {chatJob && (
         <BookingChat job={chatJob} currentUser={user} onClose={() => setChatJob(null)} />
+      )}
+      {counterJob && (
+        <CounterOfferModal
+          jobId={counterJob.job_id}
+          originalCents={counterJob.quoted_amount_cents || 0}
+          open={!!counterJob}
+          onClose={() => setCounterJob(null)}
+          onSubmitted={() => window.location.reload()}
+        />
+      )}
+      {signJob && (
+        <ContractSignModal
+          jobId={signJob.job_id}
+          expectedName={user?.name}
+          open={!!signJob}
+          onClose={() => setSignJob(null)}
+          onSigned={() => { setSignJob(null); window.location.reload(); }}
+        />
       )}
       {showOnboarding && (
         <CraftsmanOnboarding

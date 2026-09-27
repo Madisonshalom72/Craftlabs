@@ -114,3 +114,7 @@
   to=loans24funding@gmail.com
   subject=Craft Master Labs admin password reset
 
+[2026-09-27T00:19:01.768882+00:00] no_email_key_configured
+  to=alice.1790468341@example.com
+  subject=You've been added to Craft Master Labs — set your password
+

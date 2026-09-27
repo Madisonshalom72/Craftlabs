@@ -7,11 +7,12 @@ import BookingChat from "@/components/BookingChat";
 import ReviewModal from "@/components/ReviewModal";
 import ReferralPanel from "@/components/ReferralPanel";
 import AcceptQuoteModal from "@/components/AcceptQuoteModal";
+import ContractSignModal from "@/components/ContractSignModal";
 import { http } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
   Sparkles, Star, MapPin, CheckCircle2, Loader2, Briefcase, Clock, DollarSign, MessageSquare,
-  Lock, ShieldCheck, AlertTriangle,
+  Lock, ShieldCheck, AlertTriangle, FileText, TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,6 +36,8 @@ export default function CustomerDashboard() {
   const [chatJob, setChatJob] = useState(null);
   const [reviewJob, setReviewJob] = useState(null);
   const [escrowJob, setEscrowJob] = useState(null);
+  const [signJob, setSignJob] = useState(null);
+  const [counterBusy, setCounterBusy] = useState(null);
   const [busyJob, setBusyJob] = useState(null);
   const [reviewedIds, setReviewedIds] = useState({});
   const [maxDistance, setMaxDistance] = useState(15);
@@ -362,14 +365,64 @@ export default function CustomerDashboard() {
                         <Star className="w-3.5 h-3.5" /> Leave Review
                       </button>
                     ) : null}
-                    {/* Escrow controls */}
-                    {j.assigned_handyman_id && !j.escrow_status && (
+                    {/* Counter-offer review (customer decides accept/decline) */}
+                    {j.counter_status === "pending" && (
+                      <div className="w-full sm:w-auto flex items-center gap-2 rounded-full bg-amber-500/10 border border-amber-500/30 px-3 py-1.5">
+                        <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="text-xs text-amber-200">
+                          Counter: <span className="font-mono">${((j.counter_total_cents||0)/100).toFixed(2)}</span>
+                          {j.counter_reason && <span className="text-slate-400"> · {j.counter_reason}</span>}
+                        </span>
+                        <button
+                          data-testid={`counter-accept-${j.job_id}`}
+                          disabled={counterBusy === j.job_id}
+                          onClick={async () => {
+                            setCounterBusy(j.job_id);
+                            try {
+                              await http.post(`/jobs/${j.job_id}/counter/accept`);
+                              toast.success("Counter accepted — sign the contract next");
+                              refreshBookings();
+                            } catch (e) { toast.error(e?.response?.data?.detail || "Accept failed"); }
+                            finally { setCounterBusy(null); }
+                          }}
+                          className="text-xs font-semibold text-amber-100 hover:text-white ml-1"
+                        >Accept</button>
+                        <button
+                          data-testid={`counter-decline-${j.job_id}`}
+                          disabled={counterBusy === j.job_id}
+                          onClick={async () => {
+                            if (!window.confirm("Decline this counter? The job will be cancelled — the contractor cannot re-counter.")) return;
+                            setCounterBusy(j.job_id);
+                            try {
+                              await http.post(`/jobs/${j.job_id}/counter/decline`);
+                              toast("Counter declined · job cancelled");
+                              refreshBookings();
+                            } catch (e) { toast.error(e?.response?.data?.detail || "Decline failed"); }
+                            finally { setCounterBusy(null); }
+                          }}
+                          className="text-xs text-slate-400 hover:text-red-300"
+                        >Decline</button>
+                      </div>
+                    )}
+                    {/* Contract signing (before escrow) */}
+                    {j.assigned_handyman_id && !j.escrow_status && j.counter_status !== "pending" && j.contract_status !== "both_signed" && (
+                      <button
+                        data-testid={`sign-contract-${j.job_id}`}
+                        onClick={() => setSignJob(j)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-500/40 text-amber-300 text-xs font-semibold hover:bg-amber-500/10 transition"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        {j.contract_status === "customer_signed" ? "Waiting on contractor" : "Sign contract"}
+                      </button>
+                    )}
+                    {/* Escrow controls — now gated on both_signed */}
+                    {j.assigned_handyman_id && !j.escrow_status && j.contract_status === "both_signed" && (
                       <button
                         data-testid={`fund-escrow-${j.job_id}`}
                         onClick={() => setEscrowJob(j)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-craft-lime/10 border border-craft-lime/40 text-craft-lime text-xs font-semibold hover:bg-craft-lime/20 transition"
                       >
-                        <Lock className="w-3.5 h-3.5" /> Fund escrow
+                        <Lock className="w-3.5 h-3.5" /> Pay &amp; fund escrow ${((j.quoted_amount_cents||0)/100).toFixed(2)}
                       </button>
                     )}
                     {j.escrow_status === "held" && (
@@ -437,6 +490,16 @@ export default function CustomerDashboard() {
           open={!!escrowJob}
           onClose={() => setEscrowJob(null)}
           onSuccess={() => { setEscrowJob(null); refreshBookings(); }}
+        />
+      )}
+
+      {signJob && (
+        <ContractSignModal
+          jobId={signJob.job_id}
+          expectedName={user?.name}
+          open={!!signJob}
+          onClose={() => setSignJob(null)}
+          onSigned={() => { setSignJob(null); refreshBookings(); }}
         />
       )}
 

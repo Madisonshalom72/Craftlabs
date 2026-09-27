@@ -31,6 +31,8 @@ import VerifyEmail from "@/pages/VerifyEmail";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import AdminDisputes from "@/pages/AdminDisputes";
+import AdminOps from "@/pages/AdminOps";
+import BookingBuilder from "@/pages/BookingBuilder";
 import Brand from "@/pages/Brand";
 
 function AppRouter() {
@@ -65,6 +67,8 @@ function AppRouter() {
       <Route path="/payment/success" element={<PaymentSuccess />} />
       <Route path="/payment/cancel" element={<PaymentCancel />} />
       <Route path="/admin/disputes" element={<AdminDisputes />} />
+      <Route path="/admin/ops" element={<AdminOps />} />
+      <Route path="/book" element={<BookingBuilder />} />
       <Route path="/brand" element={<Brand />} />
     </Routes>
   );
