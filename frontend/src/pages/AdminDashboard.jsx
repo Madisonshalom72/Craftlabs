@@ -26,6 +26,41 @@ function StatCard({ label, value, icon: Icon, hint, tone = "amber", testid }) {
   );
 }
 
+function PortalCard({ to, testid, label, sub, icon: Icon, tone = "amber", ownerOnly = false }) {
+  const tones = {
+    amber: "border-amber-500/30 hover:border-amber-500/70 text-amber-300 group-hover:text-amber-200",
+    emerald: "border-emerald-500/30 hover:border-emerald-500/70 text-emerald-300 group-hover:text-emerald-200",
+    red: "border-red-500/30 hover:border-red-500/70 text-red-300 group-hover:text-red-200",
+    slate: "border-white/10 hover:border-white/30 text-slate-300 group-hover:text-slate-100",
+  };
+  if (ownerOnly) {
+    return (
+      <div data-testid={testid} className="glass rounded-2xl p-5 border border-white/10 opacity-40 cursor-not-allowed">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">{label}</span>
+          <Icon className="w-4 h-4 text-slate-500" />
+        </div>
+        <div className="font-heading text-lg font-semibold text-slate-400">{sub}</div>
+        <div className="text-[10px] text-slate-500 mt-1">Owner-role only</div>
+      </div>
+    );
+  }
+  return (
+    <Link
+      to={to}
+      data-testid={testid}
+      className={`group glass rounded-2xl p-5 border transition ${tones[tone]}`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className={`text-[10px] font-mono uppercase tracking-widest ${tones[tone].split(" ")[2]}`}>{label}</span>
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="font-heading text-lg font-semibold leading-tight">{sub}</div>
+      <div className="mt-2 text-[10px] font-mono text-slate-500 group-hover:text-slate-300 transition">Open →</div>
+    </Link>
+  );
+}
+
 function fmtCents(cents) {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -157,6 +192,43 @@ export default function AdminDashboard() {
 
         {tab === "overview" && analytics && (
           <div data-testid="admin-overview" className="mt-6 space-y-6">
+            {/* Portal — jump-links to every admin surface */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <PortalCard
+                to="/admin/licenses"
+                testid="portal-licenses"
+                label="Contractor approvals"
+                sub={analytics.pending_licenses > 0 ? `${analytics.pending_licenses} pending review` : "All clear"}
+                icon={ShieldCheck}
+                tone={analytics.pending_licenses > 0 ? "amber" : "emerald"}
+              />
+              <PortalCard
+                to="/admin/disputes"
+                testid="portal-disputes"
+                label="Disputes queue"
+                sub="Release, refund, or split escrow"
+                icon={AlertCircle}
+                tone="red"
+              />
+              <PortalCard
+                to="/admin/ops"
+                testid="portal-ops"
+                label="Operator ops"
+                sub="Add contractors · edit state rates · override price"
+                icon={UserCog}
+                tone="amber"
+                ownerOnly={!isOwner}
+              />
+              <PortalCard
+                to="/live"
+                testid="portal-live"
+                label="Live map"
+                sub="Real-time jobs & handymen"
+                icon={Radio}
+                tone="slate"
+              />
+            </div>
+
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard testid="stat-total-customers" label="Total customers" value={analytics.users.customers} icon={Users} hint={`+${analytics.users.new_this_week} this week`} tone="slate" />
               <StatCard testid="stat-total-handymen" label="Craftsmen" value={analytics.users.handymen} icon={Zap} tone="slate" />

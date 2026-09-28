@@ -3928,6 +3928,13 @@ async def connect_onboarding_link(
                           "stripe_account_created_at": datetime.now(timezone.utc).isoformat()}},
             )
         except stripe.error.StripeError as exc:
+            msg = (exc.user_message or str(exc)).lower()
+            # Friendly nudge when the platform hasn't enabled Connect on their Stripe dashboard yet.
+            if "signed up for connect" in msg or "not signed up for connect" in msg:
+                raise HTTPException(
+                    503,
+                    "Contractor payouts aren't live yet — the platform admin needs to enable Stripe Connect in the Stripe dashboard. Try again in a few minutes.",
+                )
             raise HTTPException(502, f"Connect account create failed: {exc.user_message or str(exc)}")
     try:
         link = stripe.AccountLink.create(
